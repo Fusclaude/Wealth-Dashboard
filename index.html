@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111a24">
+<title>Wealth Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── RESET & BASE ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { font-size: 16px; }
+body {
+  background: #111a24;
+  color: #fff;
+  font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── COLOURS ──────────────────────────────────────── */
+:root {
+  --bg:       #111a24;
+  --bg2:      #1e2a3a;
+  --bg3:      #253347;
+  --bg4:      #2e3f55;
+  --border:   #3a5068;
+  --txt:      #ffffff;
+  --txt2:     #bdc3c7;
+  --txt3:     #6b7e94;
+  --blue:     #4a90d9;
+  --green:    #27ae60;
+  --red:      #e74c3c;
+  --amber:    #f39c12;
+  --purple:   #8e44ad;
+  --teal:     #1abc9c;
+}
+
+/* ── HEADER ───────────────────────────────────────── */
+.app-header {
+  background: linear-gradient(135deg, var(--bg2), var(--bg3));
+  padding: 16px 16px 12px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--bg4);
+  position: sticky; top: 0; z-index: 40;
+}
+.app-header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.3px; }
+.app-header p  { font-size: .75rem; color: var(--txt2); margin-top: 2px; }
+
+/* ── BOTTOM NAV ───────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg2);
+  border-top: 1px solid var(--bg4);
+  display: flex;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 40;
+}
+.nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--txt3);
+  padding: 10px 4px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 56px;
+}
+.nav-btn .nav-icon { font-size: 1.3rem; line-height: 1; }
+.nav-btn .nav-label { font-size: .6rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.nav-btn.active { color: var(--blue); }
+.nav-btn.active .nav-icon { transform: translateY(-1px); }
+
+/* ── MAIN SCROLL AREA ─────────────────────────────── */
+.main {
+  padding: 12px 12px calc(72px + max(10px, env(safe-area-inset-bottom)));
+  min-height: 100dvh;
+}
+
+/* ── PAGES ────────────────────────────────────────── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── SECTION TITLE ────────────────────────────────── */
+.sec-title {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--txt3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 16px 0 8px;
+}
+
+/* ── CARD ─────────────────────────────────────────── */
+.card {
+  background: var(--bg2);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--txt2);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── KPI GRID ─────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.kpi-card {
+  background: var(--bg2);
+  border-radius: 14px;
+  padding: 12px 12px 10px;
+  border-left: 3px solid var(--blue);
+}
+.kpi-lbl  { font-size: .65rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .6px; }
+.kpi-val  { font-size: 1.25rem; font-weight: 700; margin: 5px 0 3px; }
+.kpi-delta{ font-size: .7rem; }
+.up   { color: var(--green); }
+.down { color: var(--red); }
+
+/* ── CHART CONTAINER ──────────────────────────────── */
+.chart-box {
+  position: relative;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.chart-box canvas { display: block; }
+
+/* ── DATE RANGE STRIP ─────────────────────────────── */
+.date-strip {
+  background: var(--bg3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.date-strip label { font-size: .7rem; color: var(--txt2); }
+.date-strip select {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  border-radius: 7px;
+  padding: 5px 7px;
+  font-size: .75rem;
+  flex: 1;
+  min-width: 80px;
+  max-width: 120px;
+}
+.pill-btn {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  color: var(--txt2);
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: .7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pill-btn.active, .pill-btn:active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ── CHART TYPE ROW ───────────────────────────────── */
+.type-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.type-btn {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--txt2);
+  border-radius: 8px;
+  padding: 7px 4px;
+  font-size: .72rem;
+  cursor: pointer;
+  text-align: center;
+}
+.type-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+
+/* ── PIE LEGEND ───────────────────────────────────── */
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.pie-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pie-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.pie-legend-label { font-size: .75rem; color: var(--txt2); flex: 1; }
+.pie-legend-val   { font-size: .75rem; font-weight: 700; }
+.pie-legend-pct   { font-size: .7rem; color: var(--txt3); margin-left: 4px; }
+
+/* ── PIE TOGGLE CHIPS ─────────────────────────────── */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.chip {
+  border: none;
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg3);
+  color: var(--txt2);
+}
+.chip.on { color: #fff; }
+
+/* ── METRIC GROUPS (chart picker) ─────────────────── */
+.metric-search {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--txt);
+  padding: 9px 12px;
+  font-size: .85rem;
+  margin-bottom: 10px;
+}
+.metric-search:focus { outline: none; border-color: var(--blue); }
+.metric-group { margin-bottom: 12px; }
+.metric-group-lbl {
+  font-size: .65rem;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin-bottom: 5px;
+}
+.mchips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mchip {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: .72rem;
+  cursor: pointer;
+  background: var(--bg3);
+  color: var(--txt2);
+  white-space: nowrap;
+}
+.mchip.on { color: #fff; font-weight: 600; }
+
+/* ── DATA TABLE ───────────────────────────────────── */
+.tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+table { border-collapse: collapse; font-size: .72rem; min-width: 100%; }
+th {
+  background: var(--bg3);
+  color: var(--txt2);
+  padding: 8px 10px;
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+  position: sticky; top: 0; z-index: 1;
+}
+th:first-child { text-align: left; }
+td {
+  padding: 8px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--bg3);
+  white-space: nowrap;
+  color: var(--txt2);
+}
+td:first-child { text-align: left; color: var(--txt); }
+tr:nth-child(even) td { background: #192433; }
+.edit-row-btn {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  color: var(--txt2);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: .65rem;
+  cursor: pointer;
+}
+
+/* ── FORM SECTIONS ────────────────────────────────── */
+.form-section-hdr {
+  background: var(--bg3);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin: 14px 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.form-section-hdr.green { color: var(--green); background: #1a2f1a; }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.field-item { display: flex; flex-direction: column; gap: 4px; }
+.field-lbl {
+  font-size: .68rem;
+  color: var(--txt2);
+  line-height: 1.3;
+}
+.field-lbl .lbl-tag {
+  font-size: .6rem;
+  color: var(--red);
+  font-weight: 700;
+  margin-left: 3px;
+}
+.field-input {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--txt);
+  padding: 10px 10px;
+  font-size: 1rem;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.field-input:focus { outline: none; border-color: var(--blue); background: var(--bg2); }
+.field-input.calc {
+  background: #0f2010;
+  border-color: #27ae6044;
+  color: var(--green);
+  font-weight: 600;
+}
+.calc-tag { font-size: .6rem; color: var(--green); font-weight: 700; }
+
+/* ── BUTTONS ──────────────────────────────────────── */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 13px 18px;
+  font-size: .85rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 1;
+  min-width: 100px;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-blue   { background: var(--blue); color: #fff; }
+.btn-green  { background: var(--green); color: #fff; }
+.btn-red    { background: var(--red); color: #fff; }
+.btn-grey   { background: var(--bg4); color: var(--txt2); }
+.btn:active { opacity: .8; transform: scale(.98); }
+.btn-sm {
+  border: none; border-radius: 8px; padding: 7px 12px;
+  font-size: .72rem; font-weight: 700; cursor: pointer;
+  background: var(--bg4); color: var(--txt2);
+}
+.btn-sm.green { background: #1a3a1a; color: var(--green); border: 1px solid var(--green); }
+
+/* ── NOTE BOX ─────────────────────────────────────── */
+.note-box {
+  background: var(--bg3);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: .75rem;
+  color: var(--txt2);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.note-box strong { color: var(--blue); }
+
+/* ── EDIT BANNER ──────────────────────────────────── */
+.edit-banner {
+  background: #0d2a15;
+  border: 1px solid var(--green);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: .75rem;
+  color: var(--green);
+  margin-bottom: 10px;
+  display: none;
+}
+
+/* ── TABLE MODE SELECT ────────────────────────────── */
+.tbl-ctrl-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.select-ctrl {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: .78rem;
+  flex: 1;
+}
+
+/* ── MODALS ───────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 200;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+/* Bottom sheet style on mobile */
+.modal-sheet {
+  background: var(--bg2);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-height: 85dvh;
+  overflow-y: auto;
+  padding: 0 0 max(16px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--bg4);
+}
+.modal-drag-bar {
+  width: 40px; height: 4px;
+  background: var(--bg4);
+  border-radius: 2px;
+  margin: 12px auto 4px;
+}
+.modal-body { padding: 0 16px 16px; }
+.modal-title { font-size: 1rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+.modal-sub   { font-size: .72rem; color: var(--txt3); margin-bottom: 14px; }
+
+/* Label modal */
+.lbl-edit-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.lbl-edit-row span { font-size: .65rem; color: var(--txt3); }
+.lbl-edit-row input {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--txt); padding: 8px 10px; font-size: .85rem;
+}
+
+/* Formula editor */
+.fml-card { background: var(--bg3); border-radius: 10px; padding: 11px 12px; margin-bottom: 8px; border: 1px solid var(--bg4); }
+.fml-card.editing { border-color: var(--blue); }
+.fml-card-hdr { display: flex; align-items: center; gap: 8px; }
+.fml-card-name { font-size: .8rem; font-weight: 700; flex: 1; }
+.fml-card-val  { font-size: .75rem; color: var(--green); }
+.fml-tag { font-size: .6rem; background: var(--bg4); color: var(--txt3); border-radius: 3px; padding: 1px 5px; }
+.fml-edit-body { margin-top: 10px; display: none; }
+.fml-edit-body.open { display: block; }
+.fml-field { margin-bottom: 8px; }
+.fml-field label { display: block; font-size: .65rem; color: var(--txt3); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .5px; }
+.fml-field input,
+.fml-field textarea {
+  width: 100%; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--txt); padding: 8px 10px; font-size: .8rem; font-family: monospace;
+}
+.fml-field textarea { min-height: 64px; resize: vertical; }
+.fml-feedback { font-size: .72rem; margin-top: 4px; font-family: monospace; }
+.fml-feedback.ok  { color: var(--green); }
+.fml-feedback.err { color: var(--red); }
+
+/* Var reference */
+.var-ref {
+  background: var(--bg3); border-radius: 8px; padding: 10px 12px;
+  font-size: .65rem; line-height: 1.9; font-family: monospace;
+  color: var(--txt2); margin-bottom: 12px; max-height: 120px; overflow-y: auto;
+}
+.var-ref .v-input { color: var(--blue); }
+.var-ref .v-calc  { color: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ───────────────────────────────────────── -->
+<div class="app-header">
+  <h1>💼 Wealth Dashboard</h1>
+  <p id="subtitle">Loading…</p>
+</div>
+
+<!-- ── MAIN CONTENT ─────────────────────────────────── -->
+<div class="main">
+
+<!-- PAGE: OVERVIEW -->
+<div id="page-overview" class="page active">
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="card">
+    <div class="card-title">
+      Portfolio Trend
+      <div class="type-row" style="margin:0;gap:5px">
+        <button class="type-btn active" id="ov-line" onclick="setOvType('line')">Line</button>
+        <button class="type-btn"        id="ov-bar"  onclick="setOvType('bar')">Bar</button>
+      </div>
+    </div>
+    <div class="date-strip">
+      <label>From</label>
+      <select id="ov-from" onchange="renderOvChart()"></select>
+      <label>To</label>
+      <select id="ov-to" onchange="renderOvChart()"></select>
+      <button class="pill-btn" onclick="setR('ov',99)">All</button>
+      <button class="pill-btn" onclick="setR('ov',6)">6M</button>
+      <button class="pill-btn" onclick="setR('ov',3)">3M</button>
+    </div>
+    <div class="chart-box" style="height:220px"><canvas id="ch-ov"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Asset Composition</div>
+    <div class="chip-row" id="pie-togs"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:.7rem;color:var(--txt3)">Snapshot:</span>
+      <select class="select-ctrl" style="flex:1" id="pie-date" onchange="renderPie()"></select>
+    </div>
+    <div class="chart-box" style="height:190px"><canvas id="ch-pie"></canvas></div>
+    <div class="pie-legend" id="pie-legend"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      Property Values
+    </div>
+    <div class="date-strip">
+      <label>From</label>
+      <select id="pr-from" onchange="renderPropChart()"></select>
+      <label>To</label>
+      <select id="pr-to" onchange="renderPropChart()"></select>
+      <button class="pill-btn" onclick="setR('pr',99)">All</button>
+      <button class="pill-btn" onclick="setR('pr',6)">6M</button>
+    </div>
+    <div class="chart-box" style="height:190px"><canvas id="ch-prop"></canvas></div>
+  </div>
+</div>
+
+<!-- PAGE: CHARTS -->
+<div id="page-charts" class="page">
+  <div class="card">
+    <div class="card-title">Custom Chart</div>
+    <div class="type-row">
+      <button class="type-btn active" id="cu-line" onclick="setCuType('line')">📈 Line</button>
+      <button class="type-btn"        id="cu-bar"  onclick="setCuType('bar')">📊 Bar</button>
+      <button class="type-btn"        id="cu-area" onclick="setCuType('area')">🏔 Area</button>
+    </div>
+    <div class="date-strip">
+      <label>From</label>
+      <select id="cu-from" onchange="renderCustom()"></select>
+      <label>To</label>
+      <select id="cu-to" onchange="renderCustom()"></select>
+      <button class="pill-btn" onclick="setR('cu',99)">All</button>
+      <button class="pill-btn" onclick="setR('cu',6)">6M</button>
+      <button class="pill-btn" onclick="setR('cu',3)">3M</button>
+    </div>
+    <div class="chart-box" style="height:240px;margin-bottom:14px"><canvas id="ch-cu"></canvas></div>
+    <input class="metric-search" type="search" id="metric-search" placeholder="🔍 Search fields…" oninput="renderMetricTogs()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span id="metric-count" style="font-size:.7rem;color:var(--txt3)"></span>
+      <button class="btn-sm" onclick="clearMetrics()">Clear all</button>
+    </div>
+    <div id="metric-groups"></div>
+  </div>
+</div>
+
+<!-- PAGE: DATA -->
+<div id="page-data" class="page">
+  <div class="card">
+    <div class="tbl-ctrl-row">
+      <select class="select-ctrl" id="tbl-mode">
+        <option value="inputs">Input Fields</option>
+        <option value="calcs">Calculated Fields</option>
+        <option value="all">All Fields</option>
+      </select>
+      <button class="btn-sm" onclick="renderTable()">Refresh</button>
+    </div>
+    <div class="tbl-scroll" id="tbl-wrap"></div>
+  </div>
+</div>
+
+<!-- PAGE: ADD/EDIT -->
+<div id="page-add" class="page">
+  <div class="note-box">
+    <strong>Pre-filled from last month</strong> — update what's changed then Save.
+    <br>💾 <strong>Ctrl+S / Cmd+S → Save As</strong> to keep data permanently.
+  </div>
+  <div class="edit-banner" id="edit-banner"></div>
+
+  <div class="form-section-hdr">📅 Date</div>
+  <div class="field-grid">
+    <div class="field-item" style="grid-column:1/-1">
+      <label class="field-lbl">Date</label>
+      <input type="date" id="f-date" class="field-input">
+    </div>
+  </div>
+
+  <div class="form-section-hdr">🏦 Loans <span style="font-size:.6rem;color:var(--red);font-weight:400">enter as positive</span></div>
+  <div class="field-grid" id="fg-loans"></div>
+
+  <div class="form-section-hdr">🔄 Offsets</div>
+  <div class="field-grid" id="fg-offsets"></div>
+
+  <div class="form-section-hdr">📈 Shares & Funds</div>
+  <div class="field-grid" id="fg-shares"></div>
+
+  <div class="form-section-hdr">🏦 Superannuation</div>
+  <div class="field-grid" id="fg-super"></div>
+
+  <div class="form-section-hdr">🏠 Properties</div>
+  <div class="field-grid" id="fg-props"></div>
+
+  <div class="form-section-hdr">💰 Income & Rates</div>
+  <div class="field-grid" id="fg-income"></div>
+
+  <div class="form-section-hdr green">
+    ✅ Calculated Outputs
+    <button class="btn-sm green" onclick="openFmlModal()">🔢 Edit Formulas</button>
+  </div>
+  <div class="field-grid" id="fg-calcs"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-green" onclick="saveEntry()">💾 Save</button>
+    <button class="btn btn-grey"  onclick="clearForm()">↩ Reset</button>
+    <button class="btn btn-red"   id="del-btn" style="display:none;flex:0 0 auto;padding:13px 16px" onclick="deleteEntry()">🗑</button>
+  </div>
+</div>
+
+<!-- PAGE: SETTINGS -->
+<div id="page-settings" class="page">
+  <div class="card">
+    <div class="card-title">🏷️ Edit Field Labels</div>
+    <p style="font-size:.72rem;color:var(--txt3);margin-bottom:12px">Rename any field — changes apply everywhere.</p>
+    <div id="lbl-list"></div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-green" onclick="saveLabels()">Save Labels</button>
+      <button class="btn btn-grey"  onclick="resetLabels()">Reset Defaults</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- ── BOTTOM NAV ────────────────────────────────────── -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-overview"  onclick="showPage('overview',this)">
+    <span class="nav-icon">📊</span><span class="nav-label">Overview</span>
+  </button>
+  <button class="nav-btn" id="nav-charts"   onclick="showPage('charts',this)">
+    <span class="nav-icon">📈</span><span class="nav-label">Charts</span>
+  </button>
+  <button class="nav-btn" id="nav-data"     onclick="showPage('data',this)">
+    <span class="nav-icon">📋</span><span class="nav-label">Data</span>
+  </button>
+  <button class="nav-btn" id="nav-add"      onclick="showPage('add',this)">
+    <span class="nav-icon">➕</span><span class="nav-label">Add</span>
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="showPage('settings',this)">
+    <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
+  </button>
+</nav>
+
+<!-- ── FORMULA MODAL (bottom sheet) ─────────────────── -->
+<div class="modal-overlay" id="fml-overlay" onclick="if(event.target===this)closeFmlModal()">
+  <div class="modal-sheet">
+    <div class="modal-drag-bar"></div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="modal-title">🔢 Formula Editor</div>
+        <button class="btn-sm green" onclick="addFormula()">+ Add</button>
+      </div>
+      <div class="modal-sub">Edit how each output is calculated. Built-in formulas can be edited but not deleted.</div>
+      <div class="var-ref" id="fml-var-list"></div>
+      <div id="fml-list"></div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveFmlModal()">✅ Save Formulas</button>
+        <button class="btn btn-grey"  onclick="closeFmlModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ══════════════════════════════════════════════════════════════════
+//  RAW DATA  — 18 input fields + rates per row
+// ══════════════════════════════════════════════════════════════════
+let RAW = [{"date":"2025-05-09","bnHomeLoan":-400000.0,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":156000.0,"bnInvOffset":230000.0,"bnHomeLoanOffset":174000.0,"collManagedFund":166504.0,"collJohnSuper":236057.0,"collRheaSuper":210000.0,"ausSuper":19000.0,"art":15000.0,"ausUnity":175000.0,"miscShares":30500.0,"acaciaHouse":1000000.0,"benNevis":1150000.0,"warillaUnit":450000.0,"invInterestRate":6.32,"hlInterestRate":5.93,"rent":1310.0,"salaryAfterTax":205998.0},{"date":"2025-06-19","bnHomeLoan":-398714.97,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":154750.0,"bnInvOffset":227490.0,"bnHomeLoanOffset":188194.4,"collManagedFund":177022.22,"collJohnSuper":243025.07,"collRheaSuper":210000.0,"ausSuper":23000.0,"art":15600.0,"ausUnity":175682.74,"miscShares":28500.0,"acaciaHouse":1000000.0,"benNevis":1150000.0,"warillaUnit":450000.0,"invInterestRate":6.07,"hlInterestRate":5.68,"rent":1310.0,"salaryAfterTax":205998.0},{"date":"2025-07-09","bnHomeLoan":-397310.3,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":154740.0,"bnInvOffset":227490.0,"bnHomeLoanOffset":189587.58,"collManagedFund":179928.0,"collJohnSuper":246503.46,"collRheaSuper":224853.03,"ausSuper":24760.74,"art":17325.0,"ausUnity":174892.39,"miscShares":30800.0,"acaciaHouse":1000000.0,"benNevis":1180000.0,"warillaUnit":470000.0,"invInterestRate":6.07,"hlInterestRate":5.68,"rent":1310.0,"salaryAfterTax":205998.0},{"date":"2025-08-07","bnHomeLoan":-396000.0,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":141730.0,"bnInvOffset":208480.0,"bnHomeLoanOffset":180000.0,"collManagedFund":213151.91,"collJohnSuper":269064.38,"collRheaSuper":231000.0,"ausSuper":10000.0,"art":10000.0,"ausUnity":175460.0,"miscShares":30630.0,"acaciaHouse":1011000.0,"benNevis":1190000.0,"warillaUnit":455000.0,"invInterestRate":6.07,"hlInterestRate":5.68,"rent":1310.0,"salaryAfterTax":205998.0},{"date":"2025-09-05","bnHomeLoan":-395912.94,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":128720.0,"bnInvOffset":189470.0,"bnHomeLoanOffset":187138.93,"collManagedFund":248662.39,"collJohnSuper":273120.42,"collRheaSuper":234482.23,"ausSuper":11531.0,"art":10607.0,"ausUnity":176110.31,"miscShares":30354.0,"acaciaHouse":1005000.0,"benNevis":1170000.0,"warillaUnit":455000.0,"invInterestRate":5.83,"hlInterestRate":5.43,"rent":1310.0,"salaryAfterTax":213404.13},{"date":"2025-10-09","bnHomeLoan":-393052.28,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":115710.0,"bnInvOffset":170460.0,"bnHomeLoanOffset":198148.92,"collManagedFund":287430.1,"collJohnSuper":279293.66,"collRheaSuper":239782.15,"ausSuper":14061.03,"art":12717.0,"ausUnity":176274.54,"miscShares":29648.66,"acaciaHouse":1047000.0,"benNevis":1240000.0,"warillaUnit":472000.0,"invInterestRate":5.83,"hlInterestRate":5.43,"rent":1310.0,"salaryAfterTax":213404.13},{"date":"2025-11-14","bnHomeLoan":-391541.59,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":102700.0,"bnInvOffset":151440.0,"bnHomeLoanOffset":197460.34,"collManagedFund":318700.47,"collJohnSuper":279258.86,"collRheaSuper":239752.27,"ausSuper":16989.95,"art":15365.96,"ausUnity":176646.89,"miscShares":30996.3,"acaciaHouse":1053000.0,"benNevis":1270000.0,"warillaUnit":459000.0,"invInterestRate":5.83,"hlInterestRate":5.43,"rent":1360.0,"salaryAfterTax":213404.13},{"date":"2025-12-15","bnHomeLoan":-389981.73,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":89690.0,"bnInvOffset":132440.0,"bnHomeLoanOffset":205658.01,"collManagedFund":349068.37,"collJohnSuper":277591.88,"collRheaSuper":238321.12,"ausSuper":18507.0,"art":16738.0,"ausUnity":177138.08,"miscShares":30996.3,"acaciaHouse":1080000.0,"benNevis":1290000.0,"warillaUnit":469000.0,"invInterestRate":5.83,"hlInterestRate":5.43,"rent":1360.0,"salaryAfterTax":213404.13},{"date":"2026-01-12","bnHomeLoan":-388423.82,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":76680.0,"bnInvOffset":113430.0,"bnHomeLoanOffset":208260.58,"collManagedFund":388085.06,"collJohnSuper":281967.78,"collRheaSuper":242077.96,"ausSuper":20111.68,"art":18189.3,"ausUnity":178530.88,"miscShares":39390.11,"acaciaHouse":1093000.0,"benNevis":1310000.0,"warillaUnit":465000.0,"invInterestRate":5.83,"hlInterestRate":5.43,"rent":1360.0,"salaryAfterTax":217184.5},{"date":"2026-02-12","bnHomeLoan":-386876.2,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":63670.0,"bnInvOffset":94410.0,"bnHomeLoanOffset":208728.0,"collManagedFund":420754.44,"collJohnSuper":282270.33,"collRheaSuper":242337.71,"ausSuper":21430.0,"art":19381.6,"ausUnity":176951.6,"miscShares":39200.61,"acaciaHouse":1084000.0,"benNevis":1290000.0,"warillaUnit":456000.0,"invInterestRate":6.08,"hlInterestRate":5.68,"rent":1360.0,"salaryAfterTax":217184.5},{"date":"2026-03-15","bnHomeLoan":-385280.11,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":50660.0,"bnInvOffset":75400.0,"bnHomeLoanOffset":206650.7,"collManagedFund":434347.52,"collJohnSuper":272036.15,"collRheaSuper":233551.36,"ausSuper":22938.47,"art":20745.89,"ausUnity":177264.25,"miscShares":36193.06,"acaciaHouse":1103000.0,"benNevis":1310000.0,"warillaUnit":473000.0,"invInterestRate":6.33,"hlInterestRate":5.93,"rent":1375.0,"salaryAfterTax":217184.5},{"date":"2026-04-09","bnHomeLoan":-383763.88,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":37650.0,"bnInvOffset":56400.0,"bnHomeLoanOffset":202168.17,"collManagedFund":479929.5,"collJohnSuper":278658.28,"collRheaSuper":239236.66,"ausSuper":23965.68,"art":21674.91,"ausUnity":177559.51,"miscShares":39760.0,"acaciaHouse":1125000.0,"benNevis":1360000.0,"warillaUnit":485000.0,"invInterestRate":6.33,"hlInterestRate":5.93,"rent":1375.0,"salaryAfterTax":217184.5},{"date":"2026-05-09","bnHomeLoan":-382260.12,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":24650.0,"bnInvOffset":37390.0,"bnHomeLoanOffset":200705.59,"collManagedFund":522656.96,"collJohnSuper":284026.71,"collRheaSuper":243845.62,"ausSuper":26377.47,"art":24535.53,"ausUnity":178086.82,"miscShares":44406.06,"acaciaHouse":1113000.0,"benNevis":1280000.0,"warillaUnit":490000.0,"invInterestRate":6.57,"hlInterestRate":6.18,"rent":1375.0,"salaryAfterTax":217184.5},{"date":"2026-06-12","bnHomeLoan":-380829.41,"acaciaInvLoan":-712000.0,"bnInvLoan":-400000.0,"leShares":-156000.0,"leHomeLoan":-222000.0,"leOffsetShares":11630.0,"bnInvOffset":18370.0,"bnHomeLoanOffset":187980.65,"collManagedFund":557443.26,"collJohnSuper":287746.93,"collRheaSuper":247039.54,"ausSuper":27524.83,"art":24893.86,"ausUnity":166956.4,"miscShares":47967.54,"acaciaHouse":1114000.0,"benNevis":1270000.0,"warillaUnit":465000.0,"invInterestRate":6.57,"hlInterestRate":6.18,"rent":1375.0,"salaryAfterTax":217184.5}];
+
+// ══════════════════════════════════════════════════════════════════
+//  DEFAULT LABELS  (editable by user)
+// ══════════════════════════════════════════════════════════════════
+const DEFAULT_LABELS = {
+  bnHomeLoan:       'Ben Nevis Home Loan',
+  acaciaInvLoan:    'Acacia Investment Home Loan',
+  bnInvLoan:        'Ben Nevis Investment Loan',
+  leShares:         'Lake Entrance Shares',
+  leHomeLoan:       'Lake Entrance Home Loan',
+  leOffsetShares:   'Lake Entrance Offset Shares',
+  bnInvOffset:      'Ben Nevis Investment Offset',
+  bnHomeLoanOffset: 'Ben Nevis Home Loan Offset',
+  collManagedFund:  'Coll Managed Fund',
+  collJohnSuper:    'Coll John Super',
+  collRheaSuper:    'Coll Rhea Super',
+  ausSuper:         'Aus Super',
+  art:              'ART',
+  ausUnity:         'Aus Unity',
+  miscShares:       'Misc Shares',
+  acaciaHouse:      'Acacia House',
+  benNevis:         'Ben Nevis',
+  warillaUnit:      'Warilla Unit',
+  invInterestRate:  'Investment Loan Interest Rate (%)',
+  hlInterestRate:   'Home Loan Interest Rate (%)',
+  rent:             'Monthly Rent ($)',
+  salaryAfterTax:   'Salary After Tax (annual $)',
+};
+let LABELS = JSON.parse(JSON.stringify(DEFAULT_LABELS));
+
+function L(k){ return LABELS[k] || k; }
+
+// ══════════════════════════════════════════════════════════════════
+//  FORMULA SYSTEM — editable + extensible
+// ══════════════════════════════════════════════════════════════════
+const BUILTIN_FORMULAS = [
+  { key:'invLoan',          label:'Investment Loan (net)',      expr:'acaciaInvLoan + bnInvLoan + leShares + leHomeLoan + leOffsetShares + bnInvOffset', builtIn:true },
+  { key:'homeLoan',         label:'Home Loan (net)',            expr:'bnHomeLoan + bnHomeLoanOffset', builtIn:true },
+  { key:'totalLoan',        label:'Total Loan',                 expr:'invLoan + homeLoan', builtIn:true },
+  { key:'totalLiabilities', label:'Total Liabilities',         expr:'bnHomeLoan + acaciaInvLoan + bnInvLoan + leShares + leHomeLoan', builtIn:true },
+  { key:'totalShares',      label:'Total Shares',               expr:'miscShares + ausUnity + collManagedFund', builtIn:true },
+  { key:'totalSuper',       label:'Total Super',                expr:'ausSuper + collRheaSuper + collJohnSuper + art', builtIn:true },
+  { key:'totalProperty',    label:'Total Property',             expr:'acaciaHouse + benNevis + warillaUnit', builtIn:true },
+  { key:'totalAsset',       label:'Total Assets',               expr:'leOffsetShares + bnInvOffset + bnHomeLoanOffset + collManagedFund + collJohnSuper + collRheaSuper + ausSuper + art + ausUnity + miscShares + acaciaHouse + benNevis + warillaUnit', builtIn:true },
+  { key:'netWorth',         label:'Net Worth',                  expr:'totalAsset + totalLiabilities', builtIn:true },
+  { key:'repayInv',         label:'Monthly Inv Interest',       expr:'invLoan * (invInterestRate / 100 / 12)', builtIn:true },
+  { key:'repayHL',          label:'Monthly HL Interest',        expr:'-(homeLoan * (hlInterestRate / 100 / 12))', builtIn:true },
+  { key:'totalMonthlyRepay',label:'Total Monthly Interest',     expr:'repayInv + repayHL', builtIn:true },
+  { key:'rentNet',          label:'Rent Net (after 20% exp)',   expr:'rent * 0.8 * 52', builtIn:true },
+  { key:'netCashFlow',      label:'Net Cash Flow (annual)',     expr:'(rentNet + salaryAfterTax) + (repayInv + repayHL) * 12', builtIn:true },
+  { key:'equityHome',       label:'Equity (ex Ben Nevis)',      expr:'netWorth - benNevis', builtIn:true },
+  { key:'equityHomeSuper',  label:'Equity (ex BN & Super)',     expr:'equityHome - totalSuper', builtIn:true },
+  { key:'yearlyIncome',     label:'Yearly Income Estimate',     expr:'rent * 52 * 0.8 + ausUnity * 0.04 + collManagedFund * 0.03 + repayInv * 12', builtIn:true },
+];
+
+let USER_FORMULAS = [];
+
+function getAllFormulas() {
+  return [...BUILTIN_FORMULAS.map(f => ({...f})), ...USER_FORMULAS.map(f => ({...f}))];
+}
+
+const ALL_INPUT_VARS = [
+  'bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan',
+  'leOffsetShares','bnInvOffset','bnHomeLoanOffset',
+  'collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity',
+  'miscShares','acaciaHouse','benNevis','warillaUnit',
+  'invInterestRate','hlInterestRate','rent','salaryAfterTax'
+];
+
+function evalFormulas(inputRow) {
+  const ctx = {...inputRow};
+  const formulas = getAllFormulas();
+  for (let pass = 0; pass < 6; pass++) {
+    formulas.forEach(f => {
+      try {
+        const keys = Object.keys(ctx);
+        const vals = Object.values(ctx);
+        const fn = new Function(...keys, `return (${f.expr});`);
+        ctx[f.key] = fn(...vals);
+      } catch(e) { /* unresolved dependency, retry next pass */ }
+    });
+  }
+  return ctx;
+}
+
+function validateExpr(expr, sampleRow) {
+  const sample = evalFormulas(sampleRow);
+  try {
+    const fn = new Function(...Object.keys(sample), `return (${expr});`);
+    const val = fn(...Object.values(sample));
+    if (typeof val !== 'number' || isNaN(val)) return { ok:false, error:'Expression must return a number' };
+    return { ok:true, value:val };
+  } catch(e) {
+    return { ok:false, error: e.message };
+  }
+}
+
+function calc(r) { return evalFormulas(r); }
+
+// Enrich all rows
+function enrichAll() {
+  return RAW.map(r => ({ ...r, ...calc(r) }));
+}
+let DATA = enrichAll();
+
+// ══════════════════════════════════════════════════════════════════
+//  FORMATTING
+// ══════════════════════════════════════════════════════════════════
+function fmt(v, abs=true) {
+  if (v == null || isNaN(v)) return '-';
+  const n = abs ? Math.abs(v) : v;
+  const a = Math.abs(n);
+  if (a >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (a >= 1000) return '$' + (n/1000).toFixed(0) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+function fmtFull(v) { return v == null ? '-' : '$' + Math.round(Math.abs(v)).toLocaleString(); }
+function fmtPct(v)  { return v == null ? '-' : (v*100).toFixed(1) + '%'; }
+function shortDate(d) {
+  const p = d.split('-');
+  return ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]] + " '" + p[0].slice(2);
+}
+
+const COLORS = ['#4a90d9','#27ae60','#e74c3c','#f39c12','#8e44ad','#1abc9c','#e67e22','#3498db','#e91e63','#00bcd4','#ff9800','#9c27b0'];
+
+// ══════════════════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════════════════
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  if (navBtn) navBtn.classList.add('active');
+  if (name === 'overview') { populateSelects(); renderKPIs(); renderOvChart(); renderPieTogs(); renderPie(); renderPropChart(); }
+  if (name === 'charts')   { populateSelects(); renderMetricTogs(); renderCustom(); }
+  if (name === 'data')     renderTable();
+  if (name === 'add' && !editingDate) prefillLast();
+  if (name === 'settings') renderLabelsList();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DATE RANGE SELECTS
+// ══════════════════════════════════════════════════════════════════
+function populateSelects() {
+  const pairs = [['ov-from','ov-to'],['pr-from','pr-to'],['cu-from','cu-to']];
+  pairs.forEach(([fid,tid]) => {
+    const fs = document.getElementById(fid), ts = document.getElementById(tid);
+    if (!fs || !ts) return;
+    const fv = fs.value || RAW[0].date, tv = ts.value || RAW[RAW.length-1].date;
+    fs.innerHTML = RAW.map(r => `<option value="${r.date}" ${r.date===fv?'selected':''}>${shortDate(r.date)}</option>`).join('');
+    ts.innerHTML = RAW.map(r => `<option value="${r.date}" ${r.date===tv?'selected':''}>${shortDate(r.date)}</option>`).join('');
+  });
+  const ps = document.getElementById('pie-date');
+  if (ps) {
+    const pv = ps.value || RAW[RAW.length-1].date;
+    ps.innerHTML = [...RAW].reverse().map(r => `<option value="${r.date}" ${r.date===pv?'selected':''}>${shortDate(r.date)}</option>`).join('');
+  }
+}
+function getRange(prefix) {
+  const fs = document.getElementById(prefix+'-from'), ts = document.getElementById(prefix+'-to');
+  if (!fs || !ts) return DATA;
+  return DATA.filter(r => r.date >= fs.value && r.date <= ts.value);
+}
+function setR(prefix, backN) {
+  const fs = document.getElementById(prefix+'-from'), ts = document.getElementById(prefix+'-to');
+  if (!fs || !ts) return;
+  fs.value = RAW[Math.max(0, RAW.length - backN)].date;
+  ts.value = RAW[RAW.length-1].date;
+  if (prefix==='ov') renderOvChart();
+  else if (prefix==='pr') renderPropChart();
+  else if (prefix==='cu') renderCustom();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  KPI CARDS
+// ══════════════════════════════════════════════════════════════════
+function renderKPIs() {
+  const last = DATA[DATA.length-1], prev = DATA[DATA.length-2] || last;
+  const kpis = [
+    ['Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
+    ['Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
+    ['Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c'],
+    ['Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
+    ['Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
+    ['Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
+  ];
+  document.getElementById('kpi-grid').innerHTML = kpis.map(([lbl,cur,prv,c]) => {
+    const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0, up = pct >= 0;
+    return `<div class="kpi-card" style="border-left-color:${c}">
+      <div class="kpi-lbl">${lbl}</div>
+      <div class="kpi-val" style="color:${c}">${fmt(cur)}</div>
+      <div class="kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
+    </div>`;
+  }).join('');
+  document.getElementById('subtitle').textContent =
+    `Portfolio Snapshot  ·  ${shortDate(last.date)}  ·  ${RAW.length} months tracked`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CHART HELPERS
+// ══════════════════════════════════════════════════════════════════
+let CHARTS = {};
+function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+function mmPlugin() {
+  return {
+    id: 'mmLatest',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (!meta.visible || meta.hidden) return;
+        const vals = ds.data.map(Number);
+        const maxV = Math.max(...vals), minV = Math.min(...vals), latI = vals.length - 1;
+        const special = new Set();
+        vals.forEach((v,i) => { if(v===maxV||v===minV||i===latI) special.add(i); });
+        special.forEach(i => {
+          const pt = meta.data[i]; if(!pt) return;
+          const v = vals[i], isMax = v===maxV, isMin = v===minV, isLat = i===latI;
+          const lbl = fmt(v);
+          const above = !isMin;
+          ctx.save(); ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+          const tw = ctx.measureText(lbl).width + 10, th = 15;
+          const x = pt.x, y = pt.y + (above ? -20 : 6);
+          ctx.fillStyle = isLat ? '#4a90d9' : isMax ? '#27ae60' : '#e74c3c';
+          ctx.globalAlpha = 0.9;
+          rrect(ctx, x-tw/2, y, tw, th, 3); ctx.fill();
+          ctx.globalAlpha = 1; ctx.fillStyle = '#fff';
+          ctx.fillText(lbl, x, y + 10);
+          ctx.restore();
+        });
+      }
+    );
+    }
+  };
+}
+function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+
+function baseOpts() {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{color:'#bdc3c7',font:{size:11}}},
+      tooltip:{backgroundColor:'#1e2a3a',borderColor:'#3a5068',borderWidth:1,titleColor:'#bdc3c7',bodyColor:'#fff',
+        callbacks:{label:c=>' '+fmtFull(c.raw)}}
+    },
+    scales:{
+      x:{ticks:{color:'#bdc3c7',font:{size:10}},grid:{color:'#2e3f55'}},
+      y:{ticks:{color:'#bdc3c7',font:{size:10},callback:v=>fmt(v)},grid:{color:'#2e3f55'}}
+    }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  OVERVIEW CHART
+// ══════════════════════════════════════════════════════════════════
+function renderOvChart() {
+  const d = getRange('ov');
+  const labels = d.map(r => shortDate(r.date));
+  const type = _ovType;
+  const ms = [['Total Assets','totalAsset'],['Net Worth','netWorth'],['Total Liabilities','totalLiabilities']];
+  const datasets = ms.map(([lbl,key],i) => ({
+    label:lbl, data:d.map(r=>Math.abs(r[key]||0)),
+    borderColor:COLORS[i], backgroundColor:COLORS[i]+(type==='bar'?'bb':'22'),
+    fill:false, tension:.4, pointRadius:4, borderWidth:2.5
+  }));
+  destroyChart('ch-ov');
+  CHARTS['ch-ov'] = new Chart(document.getElementById('ch-ov'), {
+    type: type==='bar'?'bar':'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PIE CHART
+// ══════════════════════════════════════════════════════════════════
+const PIE_OPTS = [
+  {key:'totalProperty', label:'Total Property', color:'#4a90d9'},
+  {key:'totalShares',   label:'Total Shares',   color:'#27ae60'},
+  {key:'totalSuper',    label:'Total Super',    color:'#8e44ad'},
+  {key:'acaciaHouse',   label:()=>L('acaciaHouse'),  color:'#1abc9c'},
+  {key:'benNevis',      label:()=>L('benNevis'),      color:'#f39c12'},
+  {key:'warillaUnit',   label:()=>L('warillaUnit'),   color:'#e67e22'},
+  {key:'collManagedFund',label:()=>L('collManagedFund'),color:'#3498db'},
+  {key:'ausUnity',      label:()=>L('ausUnity'),      color:'#e91e63'},
+];
+let activePie = ['totalProperty','totalShares','totalSuper'];
+
+function renderPieTogs() {
+  document.getElementById('pie-togs').innerHTML = PIE_OPTS.map(o => {
+    const lbl = typeof o.label === 'function' ? o.label() : o.label;
+    const on = activePie.includes(o.key);
+    return `<button class="chip ${on?'on':'off'}" onclick="togPie('${o.key}')"
+      style="${on?'background:'+o.color+'cc':''}">${lbl}</button>`;
+  }).join('');
+}
+function togPie(k) {
+  if (activePie.includes(k)) { if (activePie.length > 1) activePie = activePie.filter(x=>x!==k); }
+  else activePie.push(k);
+  renderPieTogs(); renderPie();
+}
+function renderPie() {
+  const sel = document.getElementById('pie-date');
+  const date = sel ? sel.value : RAW[RAW.length-1].date;
+  const row = DATA.find(r=>r.date===date) || DATA[DATA.length-1];
+  const items = PIE_OPTS.filter(o=>activePie.includes(o.key)).map(o => ({
+    label: typeof o.label==='function'?o.label():o.label,
+    value: Math.abs(row[o.key]||0), color:o.color
+  }));
+  const total = items.reduce((s,x)=>s+x.value,0);
+  destroyChart('ch-pie');
+  CHARTS['ch-pie'] = new Chart(document.getElementById('ch-pie'), {
+    type:'doughnut',
+    data:{labels:items.map(x=>x.label),datasets:[{data:items.map(x=>x.value),backgroundColor:items.map(x=>x.color),borderColor:'#111a24',borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{backgroundColor:'#1e2a3a',borderColor:'#3a5068',borderWidth:1,
+        callbacks:{label:c=>` ${c.label}: ${fmtFull(c.raw)} (${(c.raw/total*100).toFixed(1)}%)`}}}}
+  });
+  document.getElementById('pie-legend').innerHTML = items.map(x => `
+    <div class="pie-legend-row">
+      <div class="pie-dot" style="background:${x.color}"></div>
+      <span class="pie-legend-label">${x.label}</span>
+      <span class="pie-legend-val">${fmt(x.value)}</span>
+      <span class="pie-legend-pct">${total?(x.value/total*100).toFixed(1):0}%</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PROPERTY CHART
+// ══════════════════════════════════════════════════════════════════
+function renderPropChart() {
+  const d = getRange('pr');
+  const labels = d.map(r=>shortDate(r.date));
+  const props = [['acaciaHouse','#4a90d9'],['benNevis','#27ae60'],['warillaUnit','#f39c12']];
+  const datasets = props.map(([key,c]) => ({
+    label:L(key), data:d.map(r=>Math.abs(r[key]||0)),
+    borderColor:c, backgroundColor:c+'22', fill:false, tension:.4, pointRadius:4, borderWidth:2.5
+  }));
+  destroyChart('ch-prop');
+  CHARTS['ch-prop'] = new Chart(document.getElementById('ch-prop'), {
+    type:'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CUSTOM CHART
+// ══════════════════════════════════════════════════════════════════
+// All chartable fields grouped
+function getMetricGroups() {
+  const calcFmls = getAllFormulas();
+  return [
+    {
+      label: '📊 Portfolio Totals',
+      items: calcFmls.map(f => ({ key: f.key, label: f.label }))
+    },
+    {
+      label: '🏠 Properties',
+      items: [
+        { key:'acaciaHouse',   label: L('acaciaHouse')  },
+        { key:'benNevis',      label: L('benNevis')     },
+        { key:'warillaUnit',   label: L('warillaUnit')  },
+      ]
+    },
+    {
+      label: '📈 Shares & Funds',
+      items: [
+        { key:'collManagedFund', label: L('collManagedFund') },
+        { key:'ausUnity',        label: L('ausUnity')        },
+        { key:'miscShares',      label: L('miscShares')      },
+        { key:'leOffsetShares',  label: L('leOffsetShares')  },
+      ]
+    },
+    {
+      label: '🏦 Superannuation',
+      items: [
+        { key:'collJohnSuper',  label: L('collJohnSuper')  },
+        { key:'collRheaSuper',  label: L('collRheaSuper')  },
+        { key:'ausSuper',       label: L('ausSuper')       },
+        { key:'art',            label: L('art')            },
+      ]
+    },
+    {
+      label: '💳 Loans (raw)',
+      items: [
+        { key:'bnHomeLoan',      label: L('bnHomeLoan')      },
+        { key:'acaciaInvLoan',   label: L('acaciaInvLoan')   },
+        { key:'bnInvLoan',       label: L('bnInvLoan')       },
+        { key:'leShares',        label: L('leShares')        },
+        { key:'leHomeLoan',      label: L('leHomeLoan')      },
+      ]
+    },
+    {
+      label: '🔄 Loan Offsets',
+      items: [
+        { key:'bnInvOffset',       label: L('bnInvOffset')       },
+        { key:'bnHomeLoanOffset',  label: L('bnHomeLoanOffset')  },
+        { key:'leOffsetShares',    label: L('leOffsetShares')    },
+      ]
+    },
+    {
+      label: '💰 Income & Cash Flow',
+      items: [
+        { key:'salaryAfterTax',  label: L('salaryAfterTax') },
+        { key:'rent',            label: L('rent')           },
+        { key:'invInterestRate', label: L('invInterestRate')},
+        { key:'hlInterestRate',  label: L('hlInterestRate') },
+      ]
+    },
+  ];
+}
+
+let activeMetrics = ['totalAsset','netWorth','totalLiabilities'];
+let _ovType = 'line', _cuType = 'line';
+function setOvType(t) {
+  _ovType = t;
+  document.querySelectorAll('#page-overview .type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ov-'+t)?.classList.add('active');
+  renderOvChart();
+}
+function setCuType(t) {
+  _cuType = t;
+  document.querySelectorAll('#page-charts .type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('cu-'+t)?.classList.add('active');
+  renderCustom();
+}
+
+// flat label lookup
+function metricLabel(key) {
+  for (const g of getMetricGroups()) {
+    const item = g.items.find(i => i.key === key);
+    if (item) return item.label;
+  }
+  return key;
+}
+
+function renderMetricTogs() {
+  const search = (document.getElementById('metric-search')?.value || '').toLowerCase();
+  const groups = getMetricGroups();
+  let html = '';
+  let total = 0;
+
+  groups.forEach((g, gi) => {
+    const filtered = g.items.filter(item =>
+      !search || item.label.toLowerCase().includes(search) || item.key.toLowerCase().includes(search)
+    );
+    if (!filtered.length) return;
+    total += filtered.length;
+    html += `<div class="metric-group">
+      <div class="metric-group-lbl">${g.label}</div>
+      <div class="mchips">
+        ${filtered.map((item, ii) => {
+          const on = activeMetrics.includes(item.key);
+          const ci = (gi * 4 + ii) % COLORS.length;
+          return `<button class="mchip ${on?'on':'off'}" onclick="togMetric('${item.key}')"
+            style="${on ? `background:${COLORS[ci]};` : ''}"
+            title="${item.key}">${item.label}</button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('metric-groups').innerHTML = html || '<p style="color:#6b7e94;font-size:12px">No fields match your search.</p>';
+  document.getElementById('metric-count').textContent = `${total} fields · ${activeMetrics.length} selected`;
+}
+
+function togMetric(k) {
+  activeMetrics = activeMetrics.includes(k)
+    ? activeMetrics.filter(x => x !== k)
+    : [...activeMetrics, k];
+  renderMetricTogs();
+  renderCustom();
+}
+
+function clearMetrics() {
+  activeMetrics = [];
+  renderMetricTogs();
+  renderCustom();
+}
+
+function renderCustom() {
+  const d = getRange('cu');
+  const labels = d.map(r => shortDate(r.date));
+  const type = _cuType;
+  const datasets = activeMetrics.map((key, i) => ({
+    label: metricLabel(key),
+    data: d.map(r => {
+      const v = r[key];
+      return v != null ? Math.abs(v) : null;
+    }),
+    borderColor: COLORS[i % COLORS.length],
+    backgroundColor: COLORS[i % COLORS.length] + (type === 'bar' ? 'bb' : '22'),
+    fill: type === 'area',
+    tension: .4,
+    pointRadius: 4,
+    borderWidth: 2.5,
+    spanGaps: true,
+  }));
+  destroyChart('ch-cu');
+  CHARTS['ch-cu'] = new Chart(document.getElementById('ch-cu'), {
+    type: type === 'bar' ? 'bar' : 'line',
+    data: { labels, datasets },
+    options: baseOpts(),
+    plugins: [mmPlugin()]
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DATA TABLE
+// ══════════════════════════════════════════════════════════════════
+const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax'];
+function getCalcKeys()   { return getAllFormulas().map(f => f.key); }
+function getCalcLabels() { const o={}; getAllFormulas().forEach(f => o[f.key]=f.label); return o; }
+
+function renderTable() {
+  const mode = document.getElementById('tbl-mode').value;
+  const calcKeys = getCalcKeys(); const calcLabels = getCalcLabels();
+  const keys = mode==='inputs'?INPUT_KEYS : mode==='calcs'?calcKeys : [...INPUT_KEYS, ...calcKeys];
+  const getLabel = k => calcLabels[k] || L(k) || k;
+  let html = `<table><thead><tr>${keys.map(k=>`<th>${getLabel(k)}</th>`).join('')}<th></th></tr></thead><tbody>`;
+  [...DATA].reverse().forEach(row => {
+    html += `<tr>${keys.map(k => {
+      const v = row[k];
+      if (k==='date') return `<td>${shortDate(v)}</td>`;
+      if (k==='invInterestRate'||k==='hlInterestRate') return `<td>${v?v.toFixed(2)+'%':'-'}</td>`;
+      return `<td>${v!=null?fmtFull(v):'-'}</td>`;
+    }).join('')}<td><button class="del-btn" onclick="editRow('${row.date}')">✏️</button></td></tr>`;
+  });
+  document.getElementById('tbl-wrap').innerHTML = html + '</tbody></table>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FORM
+// ══════════════════════════════════════════════════════════════════
+const LOAN_FIELDS    = ['bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan'];
+const OFFSET_FIELDS  = ['leOffsetShares','bnInvOffset','bnHomeLoanOffset'];
+const SHARE_FIELDS   = ['collManagedFund','ausUnity','miscShares'];
+const SUPER_FIELDS   = ['collJohnSuper','collRheaSuper','ausSuper','art'];
+const PROP_FIELDS    = ['acaciaHouse','benNevis','warillaUnit'];
+const INCOME_FIELDS  = ['salaryAfterTax','rent','invInterestRate','hlInterestRate'];
+
+let editingDate = null;
+
+function buildFormSection(gridId, keys, isLiability) {
+  document.getElementById(gridId).innerHTML = keys.map(k => `
+    <div class="field-item">
+      <label class="field-lbl">${L(k)}</label>
+      <input type="number" inputmode="decimal" id="f-${k}" step="any" placeholder="0" class="field-input">
+    </div>`).join('');
+}
+
+function renderForm() {
+  buildFormSection('fg-loans',   LOAN_FIELDS,   true);
+  buildFormSection('fg-offsets', OFFSET_FIELDS, false);
+  buildFormSection('fg-shares',  SHARE_FIELDS,  false);
+  buildFormSection('fg-super',   SUPER_FIELDS,  false);
+  buildFormSection('fg-props',   PROP_FIELDS,   false);
+  buildFormSection('fg-income',  INCOME_FIELDS, false);
+  const allFmls = getAllFormulas();
+  document.getElementById('fg-calcs').innerHTML = allFmls.map(f => `
+    <div class="field-item">
+      <label class="field-lbl">${f.label} <span class="calc-tag">AUTO</span></label>
+      <input type="text" id="fc-${f.key}" readonly class="field-input calc">
+    </div>`).join('');
+}
+
+function setFormValues(row, clearDate) {
+  document.getElementById('f-date').value = clearDate ? '' : row.date;
+  LOAN_FIELDS.forEach(k => { const el = document.getElementById('f-'+k); if(el) el.value = Math.abs(row[k]||0); });
+  [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS,...INCOME_FIELDS].forEach(k => {
+    const el = document.getElementById('f-'+k); if(el) el.value = row[k] != null ? Math.abs(row[k]) : '';
+  });
+  updateCalcOutputs();
+}
+
+function getFormRow() {
+  const row = { date: document.getElementById('f-date').value };
+  if (!row.date) { alert('Please enter a date.'); return null; }
+  LOAN_FIELDS.forEach(k => { row[k] = -(Math.abs(parseFloat(document.getElementById('f-'+k)?.value)||0)); });
+  [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS].forEach(k => {
+    row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0;
+  });
+  INCOME_FIELDS.forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
+  return row;
+}
+
+function updateCalcOutputs() {
+  const row = getFormRowRaw();
+  if (!row) return;
+  const c = evalFormulas(row);
+  getAllFormulas().forEach(f => {
+    const el = document.getElementById('fc-' + f.key); if (!el) return;
+    const v = c[f.key];
+    el.value = (v != null && !isNaN(v)) ? fmtFull(v) : '–';
+  });
+}
+
+function getFormRowRaw() {
+  const row = {};
+  LOAN_FIELDS.forEach(k => { row[k] = -(Math.abs(parseFloat(document.getElementById('f-'+k)?.value)||0)); });
+  [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS].forEach(k => {
+    row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0;
+  });
+  INCOME_FIELDS.forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
+  return row;
+}
+
+// Live update calcs as user types
+document.addEventListener('input', e => {
+  if (e.target.closest('#page-add') && e.target.type === 'number') updateCalcOutputs();
+});
+
+function prefillLast() {
+  const last = RAW[RAW.length-1];
+  setFormValues(last, true);
+}
+
+function clearForm() {
+  editingDate = null;
+  document.getElementById('del-btn').style.display = 'none';
+  document.getElementById('edit-banner').style.display = 'none';
+  prefillLast();
+}
+
+function saveEntry() {
+  const row = getFormRow(); if (!row) return;
+  const enriched = { ...row, ...calc(row) };
+  if (editingDate) {
+    const idx = RAW.findIndex(r=>r.date===editingDate);
+    if (idx >= 0) RAW[idx] = row;
+    editingDate = null;
+    document.getElementById('del-btn').style.display = 'none';
+    document.getElementById('edit-banner').style.display = 'none';
+  } else {
+    const exists = RAW.findIndex(r=>r.date===row.date);
+    if (exists >= 0) { if (!confirm('Entry for this date exists. Overwrite?')) return; RAW[exists]=row; }
+    else RAW.push(row);
+    RAW.sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  DATA = enrichAll();
+  renderKPIs();
+  alert('✅ Saved!\n\nPress Ctrl+S / Cmd+S → Save As to keep your data permanently.');
+  prefillLast();
+}
+
+function editRow(date) {
+  const row = RAW.find(r=>r.date===date); if (!row) return;
+  editingDate = date;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-add').classList.add('active');
+  document.getElementById('nav-add')?.classList.add('active');
+  setFormValues(row, false);
+  document.getElementById('del-btn').style.display = 'inline-block';
+  const b = document.getElementById('edit-banner');
+  b.style.display = 'block'; b.textContent = `✏️ Editing: ${shortDate(date)} — click Save Entry when done`;
+}
+
+function deleteEntry() {
+  if (!confirm('Delete this entry?')) return;
+  RAW = RAW.filter(r=>r.date!==editingDate);
+  DATA = enrichAll();
+  editingDate = null; clearForm(); renderKPIs();
+  alert('Deleted. Save the file to make it permanent.');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  LABEL EDITOR
+// ══════════════════════════════════════════════════════════════════
+function openLabels() { showPage('settings', document.getElementById('nav-settings')); }
+function closeLabels() {}
+function renderLabelsList() {
+  document.getElementById('lbl-list').innerHTML = Object.keys(DEFAULT_LABELS).map(k => `
+    <div class="lbl-edit-row">
+      <span>${k}</span>
+      <input type="text" id="lbl-${k}" value="${LABELS[k]}">
+    </div>`).join('');
+}
+function saveLabels() {
+  Object.keys(DEFAULT_LABELS).forEach(k => {
+    const el = document.getElementById('lbl-'+k); if(el) LABELS[k] = el.value || DEFAULT_LABELS[k];
+  });
+  renderForm(); prefillLast();
+  renderPieTogs(); renderPropChart();
+  renderMetricTogs();
+  alert('Labels saved!');
+}
+function resetLabels() {
+  LABELS = JSON.parse(JSON.stringify(DEFAULT_LABELS));
+  renderLabelsList(); renderForm(); prefillLast(); renderPieTogs(); renderMetricTogs();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FORMULA EDITOR MODAL
+// ══════════════════════════════════════════════════════════════════
+let fmlEditState = {};  // tracks per-row edit open/close
+
+function openFmlModal() {
+  fmlEditState = {};
+  renderFmlModal();
+  document.getElementById('fml-overlay').classList.add('open');
+}
+function closeFmlModal() {
+  document.getElementById('fml-overlay').classList.remove('open');
+}
+
+function renderFmlModal() {
+  // Variable reference list
+  const allCtx = evalFormulas(RAW[RAW.length-1]);
+  const inputVarHtml = ALL_INPUT_VARS.map(k =>
+    `<span class="v-input">${k}</span>=${fmtFull(allCtx[k]||0)}  `
+  ).join('');
+  const calcVarHtml = getAllFormulas().map(f =>
+    `<span class="v-calc">${f.key}</span>=${fmtFull(allCtx[f.key]||0)}  `
+  ).join('');
+  document.getElementById('fml-var-list').innerHTML =
+    '<b style="color:var(--blue)">Inputs:</b> ' + inputVarHtml +
+    '<br><b style="color:var(--green)">Computed:</b> ' + calcVarHtml;
+
+  // Formula rows
+  const allFmls = getAllFormulas();
+  document.getElementById('fml-list').innerHTML = allFmls.map((f, i) => {
+    const result = allCtx[f.key];
+    const resStr = (result != null && !isNaN(result)) ? fmtFull(result) : 'error';
+    return `
+    <div class="fml-card" id="fmlrow-${i}">
+      <div class="fml-card-hdr">
+        <span class="fml-card-name">${f.label}${f.builtIn ? ' <span class="fml-tag">built-in</span>' : ''}</span>
+        <span class="fml-card-val" id="fml-res-${i}">${resStr}</span>
+        <button class="btn-sm" onclick="toggleFmlEdit(${i})" id="fml-edit-btn-${i}" style="margin-left:6px">✏️</button>
+        ${!f.builtIn ? `<button class="btn-sm" onclick="deleteFormula(${i})" style="margin-left:4px;background:var(--red);color:#fff">🗑</button>` : ''}
+      </div>
+      <div class="fml-edit-body" id="fml-edit-${i}">
+        <div class="fml-field" style="margin-top:10px">
+          <label>Display label</label>
+          <input type="text" id="fml-lbl-${i}" value="${f.label}">
+        </div>
+        <div class="fml-field">
+          <label>Variable key</label>
+          <input type="text" id="fml-key-${i}" value="${f.key}" ${f.builtIn?'readonly style="opacity:.5;cursor:not-allowed"':''}>
+        </div>
+        <div class="fml-field">
+          <label>Formula (JS expression)</label>
+          <textarea id="fml-expr-${i}" oninput="liveValidateFml(${i})">${f.expr}</textarea>
+        </div>
+        <div class="fml-feedback" id="fml-feedback-${i}"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn-sm green" onclick="applyFmlEdit(${i})">✅ Apply</button>
+          <button class="btn-sm"       onclick="toggleFmlEdit(${i})">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleFmlEdit(i) {
+  const area = document.getElementById('fml-edit-'+i);
+  const btn  = document.getElementById('fml-edit-btn-'+i);
+  const row  = document.getElementById('fmlrow-'+i);
+  const open = area.classList.toggle('open');
+  row.classList.toggle('editing', open);
+  btn.textContent = open ? '✖' : '✏️';
+}
+
+function liveValidateFml(i) {
+  const expr = document.getElementById('fml-expr-'+i)?.value || '';
+  const fb   = document.getElementById('fml-feedback-'+i);
+  if (!fb) return;
+  const sample = evalFormulas(RAW[RAW.length-1]);
+  const res = validateExpr(expr, RAW[RAW.length-1]);
+  if (res.ok) {
+    fb.className = 'fml-feedback ok';
+    fb.textContent = '✅ Valid — sample: ' + fmtFull(res.value);
+  } else {
+    fb.className = 'fml-feedback err';
+    fb.textContent = '⚠️ ' + res.error;
+  }
+}
+
+function applyFmlEdit(i) {
+  const allFmls = getAllFormulas();
+  const f = allFmls[i];
+  const newLbl  = document.getElementById('fml-lbl-'+i)?.value.trim();
+  const newKey  = document.getElementById('fml-key-'+i)?.value.trim();
+  const newExpr = document.getElementById('fml-expr-'+i)?.value.trim();
+  if (!newLbl || !newKey || !newExpr) { alert('All fields required.'); return; }
+  // Validate key format
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newKey)) { alert('Key must be a valid JS identifier (letters/numbers/underscore, no spaces).'); return; }
+  // Validate expression
+  const res = validateExpr(newExpr, RAW[RAW.length-1]);
+  if (!res.ok) { alert('Formula error: ' + res.error); return; }
+
+  if (f.builtIn) {
+    // Edit in place on the built-in array
+    const bi = BUILTIN_FORMULAS.findIndex(bf => bf.key === f.key);
+    if (bi >= 0) { BUILTIN_FORMULAS[bi].label = newLbl; BUILTIN_FORMULAS[bi].expr = newExpr; }
+  } else {
+    const ui = USER_FORMULAS.findIndex(uf => uf.key === f.key);
+    if (ui >= 0) { USER_FORMULAS[ui] = { key:newKey, label:newLbl, expr:newExpr, builtIn:false }; }
+  }
+  DATA = enrichAll();
+  renderFmlModal();
+  toggleFmlEdit(i);
+}
+
+function deleteFormula(i) {
+  const allFmls = getAllFormulas();
+  const f = allFmls[i];
+  if (f.builtIn) { alert('Cannot delete built-in formulas.'); return; }
+  if (!confirm(`Delete formula "${f.label}"?`)) return;
+  USER_FORMULAS = USER_FORMULAS.filter(uf => uf.key !== f.key);
+  DATA = enrichAll();
+  renderFmlModal();
+  renderForm(); updateCalcOutputs();
+}
+
+function addFormula() {
+  USER_FORMULAS.push({
+    key: 'myFormula' + (USER_FORMULAS.length + 1),
+    label: 'New Formula ' + (USER_FORMULAS.length + 1),
+    expr: '0',
+    builtIn: false
+  });
+  renderFmlModal();
+  // Open the edit panel for the new one
+  const idx = getAllFormulas().length - 1;
+  setTimeout(() => { toggleFmlEdit(idx); document.getElementById('fml-edit-'+idx)?.scrollIntoView({behavior:'smooth'}); }, 50);
+}
+
+function saveFmlModal() {
+  DATA = enrichAll();
+  renderForm();
+  updateCalcOutputs();
+  closeFmlModal();
+  // Also re-render calcs section
+  alert('✅ Formulas saved! All outputs updated.');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════
+renderForm();
+renderLabelsList();
+populateSelects();
+renderKPIs();
+renderOvChart();
+renderPieTogs();
+renderPie();
+renderPropChart();
+renderMetricTogs();
+prefillLast();
+
+</script>
+</body>
+</html>
