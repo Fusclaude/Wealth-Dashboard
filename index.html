@@ -9,6 +9,8 @@
 <meta name="theme-color" content="#111a24">
 <title>Wealth Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>
 <style>
 /* ── RESET & BASE ─────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -51,6 +53,44 @@ body {
 }
 .app-header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.3px; }
 .app-header p  { font-size: .75rem; color: var(--txt2); margin-top: 2px; }
+.drive-btn {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  color: var(--txt2);
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: .68rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.drive-btn.synced { background: #0d2a15; border-color: var(--green); color: var(--green); }
+.drive-btn.syncing { background: #2a230d; border-color: var(--amber); color: var(--amber); }
+.drive-btn.error { background: #2a0d0d; border-color: var(--red); color: var(--red); }
+.sync-toast {
+  position: fixed;
+  top: calc(max(16px, env(safe-area-inset-top)) + 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg2);
+  border: 1px solid var(--bg4);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: .75rem;
+  color: var(--txt2);
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+  white-space: nowrap;
+}
+.sync-toast.show { opacity: 1; }
+.sync-toast.success { border-color: var(--green); color: var(--green); }
+.sync-toast.error   { border-color: var(--red); color: var(--red); }
 
 /* ── BOTTOM NAV ───────────────────────────────────── */
 .bottom-nav {
@@ -498,9 +538,19 @@ tr:nth-child(even) td { background: #192433; }
 
 <!-- ── HEADER ───────────────────────────────────────── -->
 <div class="app-header">
-  <h1>💼 Wealth Dashboard</h1>
-  <p id="subtitle">Loading…</p>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+    <div>
+      <h1>💼 Wealth Dashboard</h1>
+      <p id="subtitle">Loading…</p>
+    </div>
+    <button id="drive-btn" class="drive-btn" onclick="handleDriveButtonClick()">
+      <span id="drive-icon">☁️</span>
+      <span id="drive-status">Sign in</span>
+    </button>
+  </div>
 </div>
+
+<div class="sync-toast" id="sync-toast"></div>
 
 <!-- ── MAIN CONTENT ─────────────────────────────────── -->
 <div class="main">
@@ -1246,6 +1296,214 @@ const SUPER_FIELDS   = ['collJohnSuper','collRheaSuper','ausSuper','art'];
 const PROP_FIELDS    = ['acaciaHouse','benNevis','warillaUnit'];
 const INCOME_FIELDS  = ['salaryAfterTax','rent','invInterestRate','hlInterestRate'];
 
+
+
+// ══════════════════════════════════════════════════════════════════
+//  GOOGLE DRIVE SYNC
+// ══════════════════════════════════════════════════════════════════
+const GOOGLE_CLIENT_ID = '7436150606-qreksqb7tv3k5dsl38akteg9tm9g11ar.apps.googleusercontent.com';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILENAME = 'wealth-dashboard-data.json';
+
+let gTokenClient = null;
+let gAccessToken = null;
+let gDriveFileId = null;
+let gTokenExpiresAt = 0;
+let gIsSignedIn = false;
+
+function showToast(msg, type) {
+  const t = document.getElementById('sync-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'sync-toast show' + (type ? ' ' + type : '');
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => { t.classList.remove('show'); }, 2600);
+}
+
+function setDriveButtonState(state, label) {
+  const btn = document.getElementById('drive-btn');
+  const icon = document.getElementById('drive-icon');
+  const status = document.getElementById('drive-status');
+  if (!btn) return;
+  btn.className = 'drive-btn' + (state ? ' ' + state : '');
+  const icons = { synced: '✅', syncing: '🔄', error: '⚠️', '': '☁️' };
+  icon.textContent = icons[state] || '☁️';
+  status.textContent = label;
+}
+
+// Restore a cached token from sessionStorage (avoids re-prompting within the same browser session)
+function restoreCachedToken() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem('gdrive_token') || 'null');
+    if (cached && cached.token && cached.expiresAt > Date.now()) {
+      gAccessToken = cached.token;
+      gTokenExpiresAt = cached.expiresAt;
+      gDriveFileId = cached.fileId || null;
+      gIsSignedIn = true;
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function cacheToken() {
+  try {
+    sessionStorage.setItem('gdrive_token', JSON.stringify({
+      token: gAccessToken, expiresAt: gTokenExpiresAt, fileId: gDriveFileId
+    }));
+  } catch(e) {}
+}
+
+function initGoogleAuth() {
+  if (!window.google || !window.google.accounts) {
+    // Library not ready yet — retry shortly
+    setTimeout(initGoogleAuth, 300);
+    return;
+  }
+  gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error) {
+        setDriveButtonState('error', 'Sign-in failed');
+        showToast('Sign-in failed: ' + resp.error, 'error');
+        return;
+      }
+      gAccessToken = resp.access_token;
+      gTokenExpiresAt = Date.now() + (resp.expires_in * 1000);
+      gIsSignedIn = true;
+      cacheToken();
+      setDriveButtonState('syncing', 'Loading…');
+      loadFromDrive(true);
+    },
+  });
+
+  // Try silent restore from session cache
+  if (restoreCachedToken()) {
+    setDriveButtonState('syncing', 'Loading…');
+    loadFromDrive(true);
+  }
+}
+
+function handleDriveButtonClick() {
+  if (gIsSignedIn && gAccessToken) {
+    // Already signed in — offer manual sync (push + pull options via simple flow: just re-save)
+    saveToDrive();
+    return;
+  }
+  if (!gTokenClient) { showToast('Google sign-in still loading… try again in a moment', 'error'); return; }
+  setDriveButtonState('syncing', 'Signing in…');
+  gTokenClient.requestAccessToken({ prompt: '' });
+}
+
+function driveFetch(url, options) {
+  options = options || {};
+  options.headers = Object.assign({}, options.headers, {
+    'Authorization': 'Bearer ' + gAccessToken
+  });
+  return fetch(url, options);
+}
+
+// Find existing data file in Drive (searches app-created files only, per drive.file scope)
+async function findDriveFile() {
+  const q = encodeURIComponent(`name='${DRIVE_FILENAME}' and trashed=false`);
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`);
+  if (!res.ok) throw new Error('Drive search failed (' + res.status + ')');
+  const data = await res.json();
+  return (data.files && data.files[0]) ? data.files[0] : null;
+}
+
+async function loadFromDrive(isAutoLoad) {
+  try {
+    const file = await findDriveFile();
+    if (!file) {
+      gDriveFileId = null;
+      setDriveButtonState('synced', 'No data yet');
+      if (!isAutoLoad) showToast('No file in Drive yet — Save will create one', '');
+      else showToast('Signed in — no saved data found yet', '');
+      cacheToken();
+      return;
+    }
+    gDriveFileId = file.id;
+    cacheToken();
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    if (!res.ok) throw new Error('Drive download failed (' + res.status + ')');
+    const json = await res.json();
+    if (Array.isArray(json.RAW)) {
+      RAW = json.RAW;
+      if (json.LABELS) LABELS = Object.assign({}, DEFAULT_LABELS, json.LABELS);
+      if (Array.isArray(json.USER_FORMULAS)) USER_FORMULAS = json.USER_FORMULAS;
+      DATA = enrichAll();
+      renderKPIs(); renderForm(); renderLabelsList(); prefillLast();
+      populateSelects(); renderOvChart(); renderPieTogs(); renderPie(); renderPropChart();
+      renderMetricTogs(); renderCustom();
+      if (document.getElementById('page-data')?.classList.contains('active')) renderTable();
+    }
+    setDriveButtonState('synced', 'Synced');
+    showToast('✅ Loaded from Google Drive', 'success');
+  } catch (err) {
+    console.error(err);
+    setDriveButtonState('error', 'Load failed');
+    showToast('Could not load from Drive: ' + err.message, 'error');
+  }
+}
+
+async function saveToDrive() {
+  if (!gIsSignedIn || !gAccessToken || Date.now() > gTokenExpiresAt - 5000) {
+    // Need a (re)login first
+    if (!gTokenClient) { showToast('Google sign-in still loading…', 'error'); return; }
+    setDriveButtonState('syncing', 'Signing in…');
+    gTokenClient.requestAccessToken({ prompt: '' });
+    return; // callback will trigger load; user can hit Save again after
+  }
+  setDriveButtonState('syncing', 'Saving…');
+  try {
+    if (!gDriveFileId) {
+      const existing = await findDriveFile();
+      if (existing) gDriveFileId = existing.id;
+    }
+    const payload = JSON.stringify({
+      RAW, LABELS, USER_FORMULAS,
+      savedAt: new Date().toISOString()
+    }, null, 2);
+
+    const metadata = { name: DRIVE_FILENAME, mimeType: 'application/json' };
+    const boundary = '-------wealthdash' + Date.now();
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n` +
+      `--${boundary}--`;
+
+    let url, method;
+    if (gDriveFileId) {
+      url = `https://www.googleapis.com/upload/drive/v3/files/${gDriveFileId}?uploadType=multipart`;
+      method = 'PATCH';
+    } else {
+      url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+      method = 'POST';
+    }
+    const res = await driveFetch(url, {
+      method,
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (!res.ok) throw new Error('Drive save failed (' + res.status + ')');
+    const result = await res.json();
+    gDriveFileId = result.id || gDriveFileId;
+    cacheToken();
+    setDriveButtonState('synced', 'Synced');
+    showToast('✅ Saved to Google Drive', 'success');
+  } catch (err) {
+    console.error(err);
+    setDriveButtonState('error', 'Save failed');
+    showToast('Could not save to Drive: ' + err.message, 'error');
+  }
+}
+
+// Kick off Google auth init once the page has loaded
+window.addEventListener('load', () => setTimeout(initGoogleAuth, 200));
+
+
 let editingDate = null;
 
 function buildFormSection(gridId, keys, isLiability) {
@@ -1346,7 +1604,11 @@ function saveEntry() {
   }
   DATA = enrichAll();
   renderKPIs();
-  alert('✅ Saved!\n\nPress Ctrl+S / Cmd+S → Save As to keep your data permanently.');
+  if (gIsSignedIn) {
+    saveToDrive();
+  } else {
+    showToast('Saved locally — sign in (☁️ top right) to sync to Drive', '');
+  }
   prefillLast();
 }
 
@@ -1368,7 +1630,8 @@ function deleteEntry() {
   RAW = RAW.filter(r=>r.date!==editingDate);
   DATA = enrichAll();
   editingDate = null; clearForm(); renderKPIs();
-  alert('Deleted. Save the file to make it permanent.');
+  if (gIsSignedIn) saveToDrive();
+  else showToast('Deleted locally — sign in to sync to Drive', '');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1390,7 +1653,8 @@ function saveLabels() {
   renderForm(); prefillLast();
   renderPieTogs(); renderPropChart();
   renderMetricTogs();
-  alert('Labels saved!');
+  if (gIsSignedIn) saveToDrive();
+  showToast('Labels saved!' + (gIsSignedIn ? '' : ' (sign in to sync)'), 'success');
 }
 function resetLabels() {
   LABELS = JSON.parse(JSON.stringify(DEFAULT_LABELS));
@@ -1539,8 +1803,8 @@ function saveFmlModal() {
   renderForm();
   updateCalcOutputs();
   closeFmlModal();
-  // Also re-render calcs section
-  alert('✅ Formulas saved! All outputs updated.');
+  if (gIsSignedIn) saveToDrive();
+  showToast('✅ Formulas saved!' + (gIsSignedIn ? '' : ' (sign in to sync)'), 'success');
 }
 
 // ══════════════════════════════════════════════════════════════════
