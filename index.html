@@ -809,6 +809,10 @@ const BUILTIN_FORMULAS = [
   { key:'equityHome',       label:'Equity (ex Ben Nevis)',      expr:'netWorth - benNevis', builtIn:true },
   { key:'equityHomeSuper',  label:'Equity (ex BN & Super)',     expr:'equityHome - totalSuper', builtIn:true },
   { key:'yearlyIncome',     label:'Yearly Income Estimate',     expr:'rent * 52 * 0.8 + ausUnity * 0.04 + collManagedFund * 0.03 + repayInv * 12', builtIn:true },
+  { key:'annualInterestCost',label:'Total Annual Interest Cost', expr:'-(homeLoan * hlInterestRate / 100) + -(invLoan * invInterestRate / 100)', builtIn:true },
+  { key:'lvrAcacia',        label:'Acacia House LVR (%)',       expr:'-(acaciaInvLoan) / acaciaHouse * 100', builtIn:true },
+  { key:'lvrBenNevis',      label:'Ben Nevis LVR (%)',          expr:'-(bnHomeLoan + bnInvLoan) / benNevis * 100', builtIn:true },
+  { key:'lvrPortfolio',     label:'Portfolio LVR (%)',          expr:'-(totalLiabilities) / totalProperty * 100', builtIn:true },
 ];
 
 let USER_FORMULAS = [];
@@ -942,12 +946,15 @@ function renderKPIs() {
     ['Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
     ['Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
     ['Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
+    ['Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct'],
+    ['Annual Interest', last.annualInterestCost, prev.annualInterestCost, '#e91e63'],
   ];
-  document.getElementById('kpi-grid').innerHTML = kpis.map(([lbl,cur,prv,c]) => {
+  document.getElementById('kpi-grid').innerHTML = kpis.map(([lbl,cur,prv,c,mode]) => {
     const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0, up = pct >= 0;
+    const valStr = mode === 'pct' ? cur.toFixed(1) + '%' : fmt(cur);
     return `<div class="kpi-card" style="border-left-color:${c}">
       <div class="kpi-lbl">${lbl}</div>
-      <div class="kpi-val" style="color:${c}">${fmt(cur)}</div>
+      <div class="kpi-val" style="color:${c}">${valStr}</div>
       <div class="kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
     </div>`;
   }).join('');
