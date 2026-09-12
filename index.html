@@ -171,12 +171,40 @@ body {
   border-radius: 14px;
   padding: 12px 12px 10px;
   border-left: 3px solid var(--blue);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .kpi-lbl  { font-size: .65rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .6px; }
 .kpi-val  { font-size: 1.25rem; font-weight: 700; margin: 5px 0 3px; }
 .kpi-delta{ font-size: .7rem; }
 .up   { color: var(--green); }
 .down { color: var(--red); }
+
+/* ── KPI CALC TOOLTIP ─────────────────────────────── */
+.kpi-tooltip {
+  position: fixed;
+  z-index: 250;
+  width: 240px;
+  max-width: calc(100vw - 24px);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: .72rem;
+  color: var(--txt2);
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity .12s, transform .12s;
+}
+.kpi-tooltip.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.kpi-tooltip .kt-title { font-weight: 700; color: var(--txt); margin-bottom: 5px; }
+.kpi-tooltip .kt-expr  { font-family: monospace; font-size: .7rem; color: var(--blue); word-break: break-word; }
+.kpi-tooltip .kt-raw   { font-family: monospace; font-size: .63rem; color: var(--txt3); margin-top: 6px; word-break: break-word; }
+.kpi-tooltip .kt-cur   { margin-top: 6px; color: var(--txt2); }
+.kpi-tooltip .kt-cur b { color: var(--green); }
 
 /* ── CHART CONTAINER ──────────────────────────────── */
 .chart-box {
@@ -551,6 +579,7 @@ tr:nth-child(even) td { background: #192433; }
 </div>
 
 <div class="sync-toast" id="sync-toast"></div>
+<div class="kpi-tooltip" id="kpi-tooltip" onclick="event.stopPropagation()"></div>
 
 <!-- ── MAIN CONTENT ─────────────────────────────────── -->
 <div class="main">
@@ -940,19 +969,22 @@ function setR(prefix, backN) {
 function renderKPIs() {
   const last = DATA[DATA.length-1], prev = DATA[DATA.length-2] || last;
   const kpis = [
-    ['Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
-    ['Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
-    ['Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c'],
-    ['Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
-    ['Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
-    ['Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
-    ['Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct'],
-    ['Monthly Interest', last.monthlyInterestCost, prev.monthlyInterestCost, '#e91e63'],
+    ['totalAsset',         'Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
+    ['netWorth',           'Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
+    ['totalLiabilities',   'Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c'],
+    ['totalSuper',         'Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
+    ['totalShares',        'Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
+    ['netCashFlow',        'Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
+    ['lvrPortfolio',       'Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct'],
+    ['monthlyInterestCost','Monthly Interest', last.monthlyInterestCost, prev.monthlyInterestCost, '#e91e63'],
   ];
-  document.getElementById('kpi-grid').innerHTML = kpis.map(([lbl,cur,prv,c,mode]) => {
+  document.getElementById('kpi-grid').innerHTML = kpis.map(([key,lbl,cur,prv,c,mode]) => {
     const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0, up = pct >= 0;
     const valStr = mode === 'pct' ? cur.toFixed(1) + '%' : fmt(cur);
-    return `<div class="kpi-card" style="border-left-color:${c}">
+    return `<div class="kpi-card" style="border-left-color:${c}" data-key="${key}"
+        onclick="toggleKpiCalc(this,'${key}')"
+        onmouseenter="showKpiCalc(this,'${key}')"
+        onmouseleave="hideKpiCalc()">
       <div class="kpi-lbl">${lbl}</div>
       <div class="kpi-val" style="color:${c}">${valStr}</div>
       <div class="kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
@@ -961,6 +993,76 @@ function renderKPIs() {
   document.getElementById('subtitle').textContent =
     `Portfolio Snapshot  ·  ${shortDate(last.date)}  ·  ${RAW.length} months tracked`;
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  KPI CALC TOOLTIP — tap or hover a tile to see how it's calculated
+// ══════════════════════════════════════════════════════════════════
+function humanizeExpr(expr) {
+  const labels = getCalcLabels();
+  ALL_INPUT_VARS.forEach(k => { if (!(k in labels)) labels[k] = L(k); });
+  const keys = Object.keys(labels).sort((a,b) => b.length - a.length);
+  let out = expr;
+  keys.forEach(k => {
+    out = out.replace(new RegExp('\\b'+k+'\\b','g'), labels[k]);
+  });
+  return out;
+}
+
+const PCT_FORMULA_KEYS = ['lvrAcacia','lvrBenNevis','lvrPortfolio'];
+function kpiTooltipHtml(key) {
+  const f = getAllFormulas().find(x => x.key === key);
+  if (!f) return null;
+  const val = DATA[DATA.length-1][key];
+  const valStr = (typeof val !== 'number' || isNaN(val)) ? '-'
+    : PCT_FORMULA_KEYS.includes(key) ? val.toFixed(1) + '%' : fmtFull(val);
+  return `<div class="kt-title">${f.label}</div>
+    <div class="kt-expr">${humanizeExpr(f.expr)}</div>
+    <div class="kt-raw">${f.expr}</div>
+    <div class="kt-cur">Current: <b>${valStr}</b></div>`;
+}
+
+function positionKpiTooltip(el, tip) {
+  const r = el.getBoundingClientRect();
+  const tw = tip.offsetWidth || 240;
+  let x = r.left;
+  if (x + tw > window.innerWidth - 12) x = window.innerWidth - tw - 12;
+  if (x < 12) x = 12;
+  let y = r.bottom + 6;
+  const th = tip.offsetHeight || 100;
+  if (y + th > window.innerHeight - 12) y = r.top - th - 6;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+let kpiPinnedKey = null;
+function showKpiCalc(el, key) {
+  const tip = document.getElementById('kpi-tooltip');
+  const html = kpiTooltipHtml(key);
+  if (!tip || !html) return;
+  tip.innerHTML = html;
+  tip.classList.add('show');
+  positionKpiTooltip(el, tip);
+}
+function hideKpiCalc() {
+  if (kpiPinnedKey) return;
+  document.getElementById('kpi-tooltip')?.classList.remove('show');
+}
+function toggleKpiCalc(el, key) {
+  const tip = document.getElementById('kpi-tooltip');
+  if (kpiPinnedKey === key) {
+    kpiPinnedKey = null;
+    tip?.classList.remove('show');
+  } else {
+    kpiPinnedKey = key;
+    showKpiCalc(el, key);
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.kpi-card') && !e.target.closest('#kpi-tooltip')) {
+    kpiPinnedKey = null;
+    document.getElementById('kpi-tooltip')?.classList.remove('show');
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  CHART HELPERS
