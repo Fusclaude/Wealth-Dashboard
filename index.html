@@ -739,6 +739,7 @@ tr:nth-child(even) td { background: #192433; }
     Fill in <strong>Monthly Living Expenses</strong> under 🔥 FIRE Planning on the <strong>Add</strong> page to calculate your FIRE number.
   </div>
 
+  <div class="sec-title" style="margin-top:0">📌 Based on your saved data</div>
   <div class="kpi-grid" id="fire-grid"></div>
 
   <div class="card">
@@ -759,6 +760,67 @@ tr:nth-child(even) td { background: #192433; }
   <div class="card">
     <div class="card-title">Estimated Time to FI</div>
     <p id="fire-projection" style="font-size:.8rem;color:var(--txt2);line-height:1.7;margin:0"></p>
+  </div>
+
+  <div class="sec-title">🎛️ Explore scenarios (doesn't change saved data)</div>
+  <div class="card">
+    <div class="card-title">
+      Quick Levers
+      <button class="btn-sm" onclick="resetFireLevers()">↺ Reset</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:12px">Drag to see how retirement age, spending and returns change your runway.</p>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Current Age</span><span id="lv-currentAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-currentAge" min="18" max="80" step="1" oninput="updateLever('currentAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Retirement Age</span><span id="lv-retireAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-retireAge" min="40" max="80" step="1" oninput="updateLever('retireAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Monthly Expenses</span><span id="lv-monthlyExpenses-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-monthlyExpenses" min="0" max="20000" step="100" oninput="updateLever('monthlyExpenses',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Retirement Spend (% of pre-retirement)</span><span id="lv-retireSpendPct-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-retireSpendPct" min="40" max="120" step="5" oninput="updateLever('retireSpendPct',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Expected Annual Return</span><span id="lv-expectedReturn-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-expectedReturn" min="0" max="12" step="0.5" oninput="updateLever('expectedReturn',this.value)" style="width:100%">
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Monthly Savings/Investing</span><span id="lv-monthlySavings-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-monthlySavings" min="0" max="20000" step="100" oninput="updateLever('monthlySavings',this.value)" style="width:100%">
+    </div>
+  </div>
+
+  <div class="note-box" id="fire-banner" style="display:none"></div>
+
+  <div class="kpi-grid" id="fire-sim-stats"></div>
+
+  <div class="card">
+    <div class="card-title">Projected Net Worth (with levers)</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Accumulates at your expected return + savings until retirement age, then draws down for expenses. Flatlines at $0 if it runs out.</p>
+    <div class="chart-box" style="height:200px"><canvas id="ch-fire-proj"></canvas></div>
   </div>
 </div>
 
@@ -977,7 +1039,7 @@ function showPage(name, btn) {
   if (name === 'charts')   { populateSelects(); renderMetricTogs(); renderCustom(); }
   if (name === 'data')     renderTable();
   if (name === 'add' && !editingDate) prefillLast();
-  if (name === 'fire')     { populateSelects(); renderFireStats(); renderFireChart(); }
+  if (name === 'fire')     { populateSelects(); renderFireStats(); renderFireChart(); renderFireLevers(); }
   if (name === 'settings') renderLabelsList();
 }
 
@@ -1190,6 +1252,142 @@ function renderFireChart() {
   destroyChart('ch-fire');
   CHARTS['ch-fire'] = new Chart(document.getElementById('ch-fire'), {
     type:'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FIRE QUICK LEVERS — year-by-year accumulation + retirement drawdown
+//  simulation driven by on-page sliders. Pure what-if: never written
+//  back to RAW/Drive.
+// ══════════════════════════════════════════════════════════════════
+const LEVER_KEYS = ['currentAge','retireAge','monthlyExpenses','retireSpendPct','expectedReturn','monthlySavings'];
+let fireLevers = null;
+
+function getFireLeverRow() {
+  const last = DATA[DATA.length-1];
+  if (!fireLevers) {
+    fireLevers = {
+      currentAge:      last.currentAge || 35,
+      retireAge:       last.targetRetireAge || Math.max((last.currentAge||35)+1, 60),
+      monthlyExpenses: last.monthlyExpenses || 0,
+      retireSpendPct:  100,
+      expectedReturn:  last.expectedReturn || 7,
+      monthlySavings:  last.monthlySavings || 0,
+    };
+  }
+  const swr = last.swr || 4;
+  const fireNumber = fireLevers.monthlyExpenses > 0 ? (fireLevers.monthlyExpenses * 12) / (swr/100) : 0;
+  return {
+    netWorth: last.netWorth,
+    currentAge: fireLevers.currentAge,
+    targetRetireAge: fireLevers.retireAge,
+    monthlyExpenses: fireLevers.monthlyExpenses,
+    monthlySavings: fireLevers.monthlySavings,
+    expectedReturn: fireLevers.expectedReturn,
+    retireSpendPct: fireLevers.retireSpendPct,
+    fireNumber,
+  };
+}
+
+// Year-by-year: accumulate (grow + save) before retirement, draw down
+// (grow - spend) after. Spend switches to retireSpendPct of pre-retirement
+// expenses the year retirement age is reached. Net worth clamps at 0.
+function simulateFireProjection(row, maxYears) {
+  maxYears = maxYears || 60;
+  const r = (row.expectedReturn || 7) / 100;
+  let nw = row.netWorth;
+  let age = row.currentAge;
+  const retireAge = row.targetRetireAge;
+  const preExpenses = row.monthlyExpenses * 12;
+  let expenses = preExpenses;
+  const rows = [];
+  let fundsOutAge = null;
+
+  for (let i = 0; i < maxYears; i++) {
+    const retired = age >= retireAge;
+    if (retired) {
+      nw = Math.max(0, nw * (1 + r) - expenses);
+      if (nw <= 0 && fundsOutAge == null) fundsOutAge = age;
+    } else {
+      nw = nw * (1 + r) + row.monthlySavings * 12;
+    }
+    rows.push({ age, netWorth: nw });
+    age++;
+    if (age === retireAge) expenses = preExpenses * ((row.retireSpendPct || 100) / 100);
+  }
+  return { rows, fundsOutAge };
+}
+
+function updateLever(key, val) {
+  getFireLeverRow();
+  fireLevers[key] = parseFloat(val);
+  renderFireProjection();
+}
+
+function resetFireLevers() {
+  fireLevers = null;
+  renderFireLevers();
+}
+
+function renderFireLevers() {
+  const row = getFireLeverRow();
+  LEVER_KEYS.forEach(k => { const el = document.getElementById('lv-'+k); if (el) el.value = fireLevers[k]; });
+  renderFireProjection();
+}
+
+function renderFireProjection() {
+  const row = getFireLeverRow();
+  const fmtLever = (k, v) => {
+    if (k === 'monthlyExpenses' || k === 'monthlySavings') return fmt(v);
+    if (k === 'expectedReturn' || k === 'retireSpendPct') return v + '%';
+    return Math.round(v);
+  };
+  LEVER_KEYS.forEach(k => { const d = document.getElementById('lv-'+k+'-val'); if (d) d.textContent = fmtLever(k, fireLevers[k]); });
+
+  const banner = document.getElementById('fire-banner');
+  const statsEl = document.getElementById('fire-sim-stats');
+
+  if (row.monthlyExpenses <= 0) {
+    if (banner) banner.style.display = 'none';
+    if (statsEl) statsEl.innerHTML = '';
+    destroyChart('ch-fire-proj');
+    return;
+  }
+
+  const sim = simulateFireProjection(row);
+
+  if (banner) {
+    banner.style.display = 'block';
+    if (sim.fundsOutAge != null) {
+      banner.style.borderColor = 'var(--red)';
+      banner.innerHTML = `<strong style="color:var(--red)">Funds run out around age ${sim.fundsOutAge}</strong> at these settings — try retiring later, trimming spend, or raising savings/return.`;
+    } else {
+      const lastAge = row.currentAge + sim.rows.length - 1;
+      banner.style.borderColor = 'var(--green)';
+      banner.innerHTML = `<strong style="color:var(--green)">Your money lasts through age ${lastAge}</strong> at these settings — it doesn't run out.`;
+    }
+  }
+
+  if (statsEl) {
+    statsEl.innerHTML = [
+      ['Funds Last Until', sim.fundsOutAge != null ? ('Age '+sim.fundsOutAge) : `60+ yrs`, sim.fundsOutAge != null ? '#e74c3c' : '#27ae60'],
+      ['FIRE Number (levers)', fmt(row.fireNumber), '#e67e22'],
+    ].map(([lbl,val,c]) => `
+      <div class="kpi-card" style="border-left-color:${c}">
+        <div class="kpi-lbl">${lbl}</div>
+        <div class="kpi-val" style="color:${c};font-size:1.1rem">${val}</div>
+      </div>`).join('');
+  }
+
+  const labels = sim.rows.map(r => 'Age '+r.age);
+  destroyChart('ch-fire-proj');
+  CHARTS['ch-fire-proj'] = new Chart(document.getElementById('ch-fire-proj'), {
+    type:'line',
+    data:{ labels, datasets:[{
+      label:'Projected Net Worth', data: sim.rows.map(r=>r.netWorth),
+      borderColor:'#5eead4', backgroundColor:'#5eead422', fill:true, tension:.3, pointRadius:0, borderWidth:2.5
+    }] },
+    options: baseOpts()
   });
 }
 
@@ -2142,6 +2340,7 @@ renderPieTogs();
 renderPie();
 renderPropChart();
 renderFireChart();
+renderFireLevers();
 renderMetricTogs();
 prefillLast();
 
