@@ -588,6 +588,11 @@ tr:nth-child(even) td { background: #192433; }
 <div id="page-overview" class="page active">
   <div class="kpi-grid" id="kpi-grid"></div>
 
+  <div class="card" id="summary-card">
+    <div class="card-title">📝 Monthly Update Summary</div>
+    <p id="summary-text" style="font-size:.8rem;color:var(--txt2);line-height:1.7;margin:0"></p>
+  </div>
+
   <div class="card">
     <div class="card-title">
       Portfolio Trend
@@ -598,12 +603,12 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="ov-from" onchange="renderOvChart()"></select>
+      <select id="ov-from" onchange="clearPillActive(this);renderOvChart()"></select>
       <label>To</label>
-      <select id="ov-to" onchange="renderOvChart()"></select>
-      <button class="pill-btn" onclick="setR('ov',99)">All</button>
-      <button class="pill-btn" onclick="setR('ov',6)">6M</button>
-      <button class="pill-btn" onclick="setR('ov',3)">3M</button>
+      <select id="ov-to" onchange="clearPillActive(this);renderOvChart()"></select>
+      <button class="pill-btn active" onclick="setR('ov',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('ov',6,this)">6M</button>
+      <button class="pill-btn" onclick="setR('ov',3,this)">3M</button>
     </div>
     <div class="chart-box" style="height:220px"><canvas id="ch-ov"></canvas></div>
   </div>
@@ -625,11 +630,11 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="pr-from" onchange="renderPropChart()"></select>
+      <select id="pr-from" onchange="clearPillActive(this);renderPropChart()"></select>
       <label>To</label>
-      <select id="pr-to" onchange="renderPropChart()"></select>
-      <button class="pill-btn" onclick="setR('pr',99)">All</button>
-      <button class="pill-btn" onclick="setR('pr',6)">6M</button>
+      <select id="pr-to" onchange="clearPillActive(this);renderPropChart()"></select>
+      <button class="pill-btn active" onclick="setR('pr',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('pr',6,this)">6M</button>
     </div>
     <div class="chart-box" style="height:190px"><canvas id="ch-prop"></canvas></div>
   </div>
@@ -646,12 +651,12 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="cu-from" onchange="renderCustom()"></select>
+      <select id="cu-from" onchange="clearPillActive(this);renderCustom()"></select>
       <label>To</label>
-      <select id="cu-to" onchange="renderCustom()"></select>
-      <button class="pill-btn" onclick="setR('cu',99)">All</button>
-      <button class="pill-btn" onclick="setR('cu',6)">6M</button>
-      <button class="pill-btn" onclick="setR('cu',3)">3M</button>
+      <select id="cu-to" onchange="clearPillActive(this);renderCustom()"></select>
+      <button class="pill-btn active" onclick="setR('cu',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('cu',6,this)">6M</button>
+      <button class="pill-btn" onclick="setR('cu',3,this)">3M</button>
     </div>
     <div class="chart-box" style="height:240px;margin-bottom:14px"><canvas id="ch-cu"></canvas></div>
     <input class="metric-search" type="search" id="metric-search" placeholder="🔍 Search fields…" oninput="renderMetricTogs()">
@@ -953,11 +958,18 @@ function getRange(prefix) {
   if (!fs || !ts) return DATA;
   return DATA.filter(r => r.date >= fs.value && r.date <= ts.value);
 }
-function setR(prefix, backN) {
+function clearPillActive(el) {
+  el.closest('.date-strip')?.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+}
+function setR(prefix, backN, btn) {
   const fs = document.getElementById(prefix+'-from'), ts = document.getElementById(prefix+'-to');
   if (!fs || !ts) return;
   fs.value = RAW[Math.max(0, RAW.length - backN)].date;
   ts.value = RAW[RAW.length-1].date;
+  if (btn) {
+    btn.closest('.date-strip')?.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
   if (prefix==='ov') renderOvChart();
   else if (prefix==='pr') renderPropChart();
   else if (prefix==='cu') renderCustom();
@@ -971,15 +983,17 @@ function renderKPIs() {
   const kpis = [
     ['totalAsset',         'Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
     ['netWorth',           'Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
-    ['totalLiabilities',   'Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c'],
+    ['totalLiabilities',   'Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c', null, true],
     ['totalSuper',         'Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
     ['totalShares',        'Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
     ['netCashFlow',        'Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
-    ['lvrPortfolio',       'Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct'],
-    ['monthlyInterestCost','Monthly Interest', last.monthlyInterestCost, prev.monthlyInterestCost, '#e91e63'],
+    ['lvrPortfolio',       'Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct', true],
+    ['monthlyInterestCost','Monthly Interest', last.monthlyInterestCost, prev.monthlyInterestCost, '#e91e63', null, true],
   ];
-  document.getElementById('kpi-grid').innerHTML = kpis.map(([key,lbl,cur,prv,c,mode]) => {
-    const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0, up = pct >= 0;
+  document.getElementById('kpi-grid').innerHTML = kpis.map(([key,lbl,cur,prv,c,mode,invert]) => {
+    const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0;
+    const rose = pct >= 0;
+    const good = invert ? !rose : rose;
     const valStr = mode === 'pct' ? cur.toFixed(1) + '%' : fmt(cur);
     return `<div class="kpi-card" style="border-left-color:${c}" data-key="${key}"
         onclick="toggleKpiCalc(this,'${key}')"
@@ -987,11 +1001,57 @@ function renderKPIs() {
         onmouseleave="hideKpiCalc()">
       <div class="kpi-lbl">${lbl}</div>
       <div class="kpi-val" style="color:${c}">${valStr}</div>
-      <div class="kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
+      <div class="kpi-delta ${good?'up':'down'}">${rose?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
     </div>`;
   }).join('');
   document.getElementById('subtitle').textContent =
     `Portfolio Snapshot  ·  ${shortDate(last.date)}  ·  ${RAW.length} months tracked`;
+  renderSummary();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MONTHLY UPDATE SUMMARY — refreshed whenever renderKPIs() runs
+//  (page load, save, delete, Drive load)
+// ══════════════════════════════════════════════════════════════════
+function renderSummary() {
+  const el = document.getElementById('summary-text');
+  if (!el) return;
+  if (DATA.length < 2) {
+    el.textContent = 'Add another month of data to see a change summary here.';
+    return;
+  }
+  const cur = DATA[DATA.length-1], prev = DATA[DATA.length-2];
+  const parts = [];
+
+  const nwDelta = cur.netWorth - prev.netWorth;
+  const nwPct = prev.netWorth ? (nwDelta/Math.abs(prev.netWorth))*100 : 0;
+  parts.push(`Net worth ${nwDelta>=0?'rose':'fell'} ${fmt(Math.abs(nwDelta))} (${nwDelta>=0?'+':'-'}${Math.abs(nwPct).toFixed(1)}%) to ${fmt(cur.netWorth)} vs ${shortDate(prev.date)}.`);
+
+  const moverKeys = [...LOAN_FIELDS, ...OFFSET_FIELDS, ...SHARE_FIELDS, ...SUPER_FIELDS, ...PROP_FIELDS];
+  let top = null;
+  moverKeys.forEach(k => {
+    const d = (cur[k]||0) - (prev[k]||0);
+    if (!top || Math.abs(d) > Math.abs(top.d)) top = { k, d };
+  });
+  if (top && Math.abs(top.d) > 0.5) {
+    parts.push(`Biggest mover: ${L(top.k)} ${top.d>=0?'+':'-'}${fmt(Math.abs(top.d))}.`);
+  }
+
+  if (typeof cur.lvrPortfolio === 'number' && typeof prev.lvrPortfolio === 'number') {
+    const lvrDelta = cur.lvrPortfolio - prev.lvrPortfolio;
+    if (Math.abs(lvrDelta) > 0.05) {
+      parts.push(`Portfolio LVR ${lvrDelta>=0?'rose':'fell'} ${Math.abs(lvrDelta).toFixed(1)}pts to ${cur.lvrPortfolio.toFixed(1)}% (${lvrDelta>=0?'more':'less'} leveraged).`);
+    }
+  }
+
+  if (typeof cur.monthlyInterestCost === 'number' && typeof prev.monthlyInterestCost === 'number') {
+    const intDelta = cur.monthlyInterestCost - prev.monthlyInterestCost;
+    if (Math.abs(intDelta) > 0.5) {
+      parts.push(`Monthly interest cost ${intDelta>=0?'increased':'decreased'} ${fmt(Math.abs(intDelta))} to ${fmt(cur.monthlyInterestCost)}/mo.`);
+    }
+  }
+
+  el.textContent = parts.join(' ');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1104,7 +1164,7 @@ function mmPlugin() {
 }
 function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
 
-function baseOpts() {
+function baseOpts(stacked) {
   return {
     responsive:true, maintainAspectRatio:false,
     plugins:{
@@ -1113,8 +1173,8 @@ function baseOpts() {
         callbacks:{label:c=>' '+fmtFull(c.raw)}}
     },
     scales:{
-      x:{ticks:{color:'#bdc3c7',font:{size:10}},grid:{color:'#2e3f55'}},
-      y:{ticks:{color:'#bdc3c7',font:{size:10},callback:v=>fmt(v)},grid:{color:'#2e3f55'}}
+      x:{stacked:!!stacked,ticks:{color:'#bdc3c7',font:{size:10}},grid:{color:'#2e3f55'}},
+      y:{stacked:!!stacked,ticks:{color:'#bdc3c7',font:{size:10},callback:v=>fmt(v)},grid:{color:'#2e3f55'}}
     }
   };
 }
@@ -1134,7 +1194,7 @@ function renderOvChart() {
   }));
   destroyChart('ch-ov');
   CHARTS['ch-ov'] = new Chart(document.getElementById('ch-ov'), {
-    type: type==='bar'?'bar':'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+    type: type==='bar'?'bar':'line', data:{labels,datasets}, options:baseOpts(type==='bar'), plugins:[mmPlugin()]
   });
 }
 
@@ -1366,7 +1426,7 @@ function renderCustom() {
   CHARTS['ch-cu'] = new Chart(document.getElementById('ch-cu'), {
     type: type === 'bar' ? 'bar' : 'line',
     data: { labels, datasets },
-    options: baseOpts(),
+    options: baseOpts(type === 'bar'),
     plugins: [mmPlugin()]
   });
 }
@@ -1619,7 +1679,7 @@ function buildFormSection(gridId, keys, isLiability) {
   document.getElementById(gridId).innerHTML = keys.map(k => `
     <div class="field-item">
       <label class="field-lbl">${L(k)}</label>
-      <input type="number" inputmode="decimal" id="f-${k}" step="any" placeholder="0" class="field-input">
+      <input type="text" inputmode="decimal" autocomplete="off" id="f-${k}" placeholder="0" class="field-input">
     </div>`).join('');
 }
 
@@ -1681,7 +1741,9 @@ function getFormRowRaw() {
 
 // Live update calcs as user types
 document.addEventListener('input', e => {
-  if (e.target.closest('#page-add') && e.target.type === 'number') updateCalcOutputs();
+  if (e.target.closest('#page-add') && e.target.tagName === 'INPUT' && e.target.id?.startsWith('f-') && e.target.id !== 'f-date') {
+    updateCalcOutputs();
+  }
 });
 
 function prefillLast() {
