@@ -772,16 +772,38 @@ tr:nth-child(even) td { background: #192433; }
 
     <div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
-        <span>Current Age</span><span id="lv-currentAge-val" style="color:var(--blue);font-weight:600"></span>
+        <span>John — Current Age</span><span id="lv-johnAge-val" style="color:var(--blue);font-weight:600"></span>
       </div>
-      <input type="range" id="lv-currentAge" min="18" max="80" step="1" oninput="updateLever('currentAge',this.value)" style="width:100%">
+      <input type="range" id="lv-johnAge" min="18" max="80" step="1" oninput="updateLever('johnAge',this.value)" style="width:100%">
     </div>
 
     <div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
-        <span>Retirement Age</span><span id="lv-retireAge-val" style="color:var(--blue);font-weight:600"></span>
+        <span>John — Retirement Age</span><span id="lv-johnRetireAge-val" style="color:var(--blue);font-weight:600"></span>
       </div>
-      <input type="range" id="lv-retireAge" min="40" max="80" step="1" oninput="updateLever('retireAge',this.value)" style="width:100%">
+      <input type="range" id="lv-johnRetireAge" min="40" max="80" step="1" oninput="updateLever('johnRetireAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Rhea — Current Age</span><span id="lv-rheaAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-rheaAge" min="18" max="80" step="1" oninput="updateLever('rheaAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Rhea — Retirement Age</span><span id="lv-rheaRetireAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-rheaRetireAge" min="40" max="80" step="1" oninput="updateLever('rheaRetireAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:.68rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Retirement starts when</div>
+      <div class="type-row" style="margin:0">
+        <button class="type-btn active" id="rt-both" onclick="setRetireTrigger('both')">Both retire</button>
+        <button class="type-btn"        id="rt-first" onclick="setRetireTrigger('first')">Either retires</button>
+      </div>
     </div>
 
     <div style="margin-bottom:14px">
@@ -813,13 +835,26 @@ tr:nth-child(even) td { background: #192433; }
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-title">📅 Scheduled Asset Sales</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">
+      Schedule a future sale of a tracked property or share holding. Proceeds pay off its linked loan first (if any), with the remainder added to your liquid savings in the projection below. No CGT or other tax is modelled.
+    </p>
+    <div id="fire-sales-list" style="margin-bottom:10px"></div>
+    <div class="date-strip" style="margin-bottom:0">
+      <select class="select-ctrl" id="sale-asset" style="flex:2"></select>
+      <input type="number" id="sale-year" class="field-input" placeholder="Year" style="flex:1;padding:8px 10px;font-size:.78rem">
+      <button class="btn-sm green" onclick="addFireSale()">+ Add</button>
+    </div>
+  </div>
+
   <div class="note-box" id="fire-banner" style="display:none"></div>
 
   <div class="kpi-grid" id="fire-sim-stats"></div>
 
   <div class="card">
-    <div class="card-title">Projected Net Worth (with levers)</div>
-    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Accumulates at your expected return + savings until retirement age, then draws down for expenses. Flatlines at $0 if it runs out.</p>
+    <div class="card-title">Projected Net Worth (with levers &amp; sales)</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Accumulates at your expected return + savings until retirement, then draws down liquid savings for expenses. Scheduled sales convert property/share value into liquid funds. Flatlines at $0 if liquid funds run out.</p>
     <div class="chart-box" style="height:200px"><canvas id="ch-fire-proj"></canvas></div>
   </div>
 </div>
@@ -918,8 +953,10 @@ const DEFAULT_LABELS = {
   monthlySavings:   'Est. Monthly Savings/Investing ($)',
   swr:              'Safe Withdrawal Rate (%)',
   expectedReturn:   'Expected Annual Return (%)',
-  currentAge:       'Current Age',
-  targetRetireAge:  'Target Retirement Age',
+  johnAge:          "John's Current Age",
+  johnRetireAge:    "John's Retirement Age",
+  rheaAge:          "Rhea's Current Age",
+  rheaRetireAge:    "Rhea's Retirement Age",
 };
 let LABELS = JSON.parse(JSON.stringify(DEFAULT_LABELS));
 
@@ -967,7 +1004,7 @@ const ALL_INPUT_VARS = [
   'collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity',
   'miscShares','acaciaHouse','benNevis','warillaUnit',
   'invInterestRate','hlInterestRate','rent','salaryAfterTax',
-  'monthlyExpenses','monthlySavings','swr','expectedReturn','currentAge','targetRetireAge'
+  'monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'
 ];
 
 function evalFormulas(inputRow) {
@@ -1195,14 +1232,17 @@ function fireProjectionText(row) {
   target.setMonth(target.getMonth() + months);
   const targetStr = target.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   let txt = `At ${fmt(row.monthlySavings||0)}/mo savings and ${row.expectedReturn||7}% expected return, you're projected to reach FI in ${years>0?years+'y ':''}${rem}mo (~${targetStr}).`;
-  if (row.currentAge) {
-    const ageAtFire = (+row.currentAge) + months/12;
-    txt += ` That's around age ${ageAtFire.toFixed(1)}.`;
-    if (row.targetRetireAge) {
-      const diff = (+row.targetRetireAge) - ageAtFire;
+  if (row.johnAge) {
+    const johnAtFire = (+row.johnAge) + months/12;
+    txt += ` That's around John's age ${johnAtFire.toFixed(1)}`;
+    if (row.rheaAge) txt += ` (Rhea's age ${((+row.rheaAge)+months/12).toFixed(1)})`;
+    txt += '.';
+    const retireTarget = Math.max(+row.johnRetireAge || 0, +row.rheaRetireAge || 0);
+    if (retireTarget) {
+      const diff = retireTarget - johnAtFire;
       txt += diff >= 0
-        ? ` You're on track to beat your target retirement age of ${row.targetRetireAge} by ~${diff.toFixed(1)} years.`
-        : ` That's ~${Math.abs(diff).toFixed(1)} years later than your target retirement age of ${row.targetRetireAge}.`;
+        ? ` You're on track to beat your household's latest target retirement age of ${retireTarget} by ~${diff.toFixed(1)} years.`
+        : ` That's ~${Math.abs(diff).toFixed(1)} years later than your household's latest target retirement age of ${retireTarget}.`;
     }
   }
   return txt;
@@ -1260,15 +1300,84 @@ function renderFireChart() {
 //  simulation driven by on-page sliders. Pure what-if: never written
 //  back to RAW/Drive.
 // ══════════════════════════════════════════════════════════════════
-const LEVER_KEYS = ['currentAge','retireAge','monthlyExpenses','retireSpendPct','expectedReturn','monthlySavings'];
+const LEVER_KEYS = ['johnAge','johnRetireAge','rheaAge','rheaRetireAge','monthlyExpenses','retireSpendPct','expectedReturn','monthlySavings'];
 let fireLevers = null;
+let fireRetireTrigger = 'both';
+
+// Tracked properties/shares, each optionally linked to the one loan its
+// sale proceeds pay off first. Used only for Scheduled Asset Sales below —
+// everything else (super, offsets, misc) stays pooled as "other".
+const PROPERTY_ASSETS = [
+  { key:'acaciaHouse', loanKey:'acaciaInvLoan' },
+  { key:'benNevis',    loanKey:'bnHomeLoan' },
+  { key:'warillaUnit', loanKey:null },
+];
+const SHARE_ASSETS = [
+  { key:'collManagedFund' }, { key:'ausUnity' }, { key:'miscShares' },
+];
+const SALE_LOAN_KEYS = ['bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan'];
+
+let FIRE_SALES = [];
+
+function saleableAssets() {
+  return [
+    ...PROPERTY_ASSETS.map(p => ({ type:'property', key:p.key, label:L(p.key) })),
+    ...SHARE_ASSETS.map(s => ({ type:'share', key:s.key, label:L(s.key) })),
+  ];
+}
+
+function renderFireSales() {
+  const sel = document.getElementById('sale-asset');
+  if (sel) sel.innerHTML = saleableAssets().map(a => `<option value="${a.type}|${a.key}">${a.label}</option>`).join('');
+  const list = document.getElementById('fire-sales-list');
+  if (!list) return;
+  if (!FIRE_SALES.length) { list.innerHTML = '<p style="font-size:.72rem;color:var(--txt3)">No sales scheduled yet.</p>'; return; }
+  const assetsByKey = Object.fromEntries(saleableAssets().map(a => [a.type+'|'+a.key, a.label]));
+  list.innerHTML = [...FIRE_SALES].sort((a,b)=>a.year-b.year).map(s => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bg3)">
+      <span style="flex:1;font-size:.78rem;color:var(--txt)">${assetsByKey[s.assetType+'|'+s.assetKey] || s.assetKey}</span>
+      <span style="font-size:.78rem;color:var(--blue)">${s.year}</span>
+      <button class="edit-row-btn" onclick="removeFireSale('${s.id}')">🗑</button>
+    </div>`).join('');
+}
+
+function addFireSale() {
+  const sel = document.getElementById('sale-asset');
+  const yearEl = document.getElementById('sale-year');
+  const year = parseInt(yearEl?.value, 10);
+  if (!sel?.value || !year) { alert('Pick an asset and a year.'); return; }
+  const [assetType, assetKey] = sel.value.split('|');
+  FIRE_SALES.push({ id: 'sale'+Date.now(), assetType, assetKey, year });
+  FIRE_SALES.sort((a,b)=>a.year-b.year);
+  if (yearEl) yearEl.value = '';
+  renderFireSales();
+  renderFireProjection();
+  if (gIsSignedIn) saveToDrive();
+  else showToast('Saved locally — sign in to sync to Drive', '');
+}
+
+function removeFireSale(id) {
+  FIRE_SALES = FIRE_SALES.filter(s => s.id !== id);
+  renderFireSales();
+  renderFireProjection();
+  if (gIsSignedIn) saveToDrive();
+}
+
+function setRetireTrigger(v) {
+  fireRetireTrigger = v;
+  document.getElementById('rt-both')?.classList.toggle('active', v === 'both');
+  document.getElementById('rt-first')?.classList.toggle('active', v === 'first');
+  renderFireProjection();
+}
 
 function getFireLeverRow() {
   const last = DATA[DATA.length-1];
   if (!fireLevers) {
     fireLevers = {
-      currentAge:      last.currentAge || 35,
-      retireAge:       last.targetRetireAge || Math.max((last.currentAge||35)+1, 60),
+      johnAge:         last.johnAge || 35,
+      johnRetireAge:   last.johnRetireAge || Math.max((last.johnAge||35)+1, 60),
+      rheaAge:         last.rheaAge || 35,
+      rheaRetireAge:   last.rheaRetireAge || Math.max((last.rheaAge||35)+1, 60),
       monthlyExpenses: last.monthlyExpenses || 0,
       retireSpendPct:  100,
       expectedReturn:  last.expectedReturn || 7,
@@ -1279,8 +1388,10 @@ function getFireLeverRow() {
   const fireNumber = fireLevers.monthlyExpenses > 0 ? (fireLevers.monthlyExpenses * 12) / (swr/100) : 0;
   return {
     netWorth: last.netWorth,
-    currentAge: fireLevers.currentAge,
-    targetRetireAge: fireLevers.retireAge,
+    johnAge: fireLevers.johnAge,
+    johnRetireAge: fireLevers.johnRetireAge,
+    rheaAge: fireLevers.rheaAge,
+    rheaRetireAge: fireLevers.rheaRetireAge,
     monthlyExpenses: fireLevers.monthlyExpenses,
     monthlySavings: fireLevers.monthlySavings,
     expectedReturn: fireLevers.expectedReturn,
@@ -1289,31 +1400,75 @@ function getFireLeverRow() {
   };
 }
 
+function buildAssetPools(lastRow) {
+  const properties = PROPERTY_ASSETS.map(p => ({ key:p.key, loanKey:p.loanKey, value: lastRow[p.key]||0, sold:false }));
+  const shares = SHARE_ASSETS.map(s => ({ key:s.key, value: lastRow[s.key]||0, sold:false }));
+  const loans = {};
+  SALE_LOAN_KEYS.forEach(k => { loans[k] = Math.abs(lastRow[k]||0); });
+  const itemized = properties.reduce((a,p)=>a+p.value,0) + shares.reduce((a,s)=>a+s.value,0)
+    - Object.values(loans).reduce((a,v)=>a+v,0);
+  return { properties, shares, loans, other: lastRow.netWorth - itemized };
+}
+
 // Year-by-year: accumulate (grow + save) before retirement, draw down
-// (grow - spend) after. Spend switches to retireSpendPct of pre-retirement
-// expenses the year retirement age is reached. Net worth clamps at 0.
-function simulateFireProjection(row, maxYears) {
+// liquid "other" savings for expenses after. Expenses switch to
+// retireSpendPct of pre-retirement spend once retirement triggers
+// (both partners retired, or either — per fireRetireTrigger). Scheduled
+// sales convert a property/share's value to liquid funds in its sale
+// year, paying off its linked loan first. No tax (incl. CGT) modelled.
+function simulateFireProjection(row, lastRow, maxYears) {
   maxYears = maxYears || 60;
   const r = (row.expectedReturn || 7) / 100;
-  let nw = row.netWorth;
-  let age = row.currentAge;
-  const retireAge = row.targetRetireAge;
+  const pools = buildAssetPools(lastRow);
+  let other = pools.other;
+  let johnAge = row.johnAge, rheaAge = row.rheaAge;
   const preExpenses = row.monthlyExpenses * 12;
   let expenses = preExpenses;
+  let expensesAdjusted = false;
+  const thisYear = new Date().getFullYear();
   const rows = [];
   let fundsOutAge = null;
 
   for (let i = 0; i < maxYears; i++) {
-    const retired = age >= retireAge;
+    const calYear = thisYear + i;
+
+    FIRE_SALES.filter(s => s.year === calYear).forEach(sale => {
+      if (sale.assetType === 'property') {
+        const p = pools.properties.find(x => x.key === sale.assetKey);
+        if (p && !p.sold) {
+          let proceeds = p.value;
+          if (p.loanKey && pools.loans[p.loanKey] != null) {
+            const payoff = Math.min(proceeds, pools.loans[p.loanKey]);
+            pools.loans[p.loanKey] -= payoff; proceeds -= payoff;
+          }
+          other += proceeds; p.sold = true; p.value = 0;
+        }
+      } else {
+        const s = pools.shares.find(x => x.key === sale.assetKey);
+        if (s && !s.sold) { other += s.value; s.sold = true; s.value = 0; }
+      }
+    });
+
+    pools.properties.forEach(p => { if (!p.sold) p.value *= (1 + r); });
+    pools.shares.forEach(s => { if (!s.sold) s.value *= (1 + r); });
+    other *= (1 + r);
+
+    const johnRet = johnAge >= row.johnRetireAge, rheaRet = rheaAge >= row.rheaRetireAge;
+    const retired = fireRetireTrigger === 'both' ? (johnRet && rheaRet) : (johnRet || rheaRet);
+
     if (retired) {
-      nw = Math.max(0, nw * (1 + r) - expenses);
-      if (nw <= 0 && fundsOutAge == null) fundsOutAge = age;
+      if (!expensesAdjusted) { expenses = preExpenses * ((row.retireSpendPct || 100) / 100); expensesAdjusted = true; }
+      other = Math.max(0, other - expenses);
+      if (other <= 0 && fundsOutAge == null) fundsOutAge = johnAge;
     } else {
-      nw = nw * (1 + r) + row.monthlySavings * 12;
+      other += row.monthlySavings * 12;
     }
-    rows.push({ age, netWorth: nw });
-    age++;
-    if (age === retireAge) expenses = preExpenses * ((row.retireSpendPct || 100) / 100);
+
+    const totalLoans = Object.values(pools.loans).reduce((a,v)=>a+v,0);
+    const netWorth = other + pools.properties.reduce((a,p)=>a+p.value,0) + pools.shares.reduce((a,s)=>a+s.value,0) - totalLoans;
+    rows.push({ age: johnAge, rheaAge, netWorth });
+
+    johnAge++; rheaAge++;
   }
   return { rows, fundsOutAge };
 }
@@ -1330,6 +1485,7 @@ function resetFireLevers() {
 }
 
 function renderFireLevers() {
+  renderFireSales();
   const row = getFireLeverRow();
   LEVER_KEYS.forEach(k => { const el = document.getElementById('lv-'+k); if (el) el.value = fireLevers[k]; });
   renderFireProjection();
@@ -1354,23 +1510,23 @@ function renderFireProjection() {
     return;
   }
 
-  const sim = simulateFireProjection(row);
+  const sim = simulateFireProjection(row, DATA[DATA.length-1]);
 
   if (banner) {
     banner.style.display = 'block';
     if (sim.fundsOutAge != null) {
       banner.style.borderColor = 'var(--red)';
-      banner.innerHTML = `<strong style="color:var(--red)">Funds run out around age ${sim.fundsOutAge}</strong> at these settings — try retiring later, trimming spend, or raising savings/return.`;
+      banner.innerHTML = `<strong style="color:var(--red)">Liquid funds run out around John's age ${sim.fundsOutAge}</strong> at these settings — try retiring later, trimming spend, scheduling a sale, or raising savings/return.`;
     } else {
-      const lastAge = row.currentAge + sim.rows.length - 1;
+      const lastAge = row.johnAge + sim.rows.length - 1;
       banner.style.borderColor = 'var(--green)';
-      banner.innerHTML = `<strong style="color:var(--green)">Your money lasts through age ${lastAge}</strong> at these settings — it doesn't run out.`;
+      banner.innerHTML = `<strong style="color:var(--green)">Your money lasts through John's age ${lastAge}</strong> at these settings — it doesn't run out.`;
     }
   }
 
   if (statsEl) {
     statsEl.innerHTML = [
-      ['Funds Last Until', sim.fundsOutAge != null ? ('Age '+sim.fundsOutAge) : `60+ yrs`, sim.fundsOutAge != null ? '#e74c3c' : '#27ae60'],
+      ['Funds Last Until', sim.fundsOutAge != null ? ("John's age "+sim.fundsOutAge) : `60+ yrs`, sim.fundsOutAge != null ? '#e74c3c' : '#27ae60'],
       ['FIRE Number (levers)', fmt(row.fireNumber), '#e67e22'],
     ].map(([lbl,val,c]) => `
       <div class="kpi-card" style="border-left-color:${c}">
@@ -1677,8 +1833,10 @@ function getMetricGroups() {
         { key:'monthlySavings',  label: L('monthlySavings')  },
         { key:'swr',             label: L('swr')             },
         { key:'expectedReturn',  label: L('expectedReturn')  },
-        { key:'currentAge',      label: L('currentAge')      },
-        { key:'targetRetireAge', label: L('targetRetireAge') },
+        { key:'johnAge',         label: L('johnAge')         },
+        { key:'johnRetireAge',   label: L('johnRetireAge')   },
+        { key:'rheaAge',         label: L('rheaAge')         },
+        { key:'rheaRetireAge',   label: L('rheaRetireAge')   },
       ]
     },
   ];
@@ -1782,7 +1940,7 @@ function renderCustom() {
 // ══════════════════════════════════════════════════════════════════
 //  DATA TABLE
 // ══════════════════════════════════════════════════════════════════
-const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax','monthlyExpenses','monthlySavings','swr','expectedReturn','currentAge','targetRetireAge'];
+const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax','monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 function getCalcKeys()   { return getAllFormulas().map(f => f.key); }
 function getCalcLabels() { const o={}; getAllFormulas().forEach(f => o[f.key]=f.label); return o; }
 
@@ -1812,7 +1970,7 @@ const SHARE_FIELDS   = ['collManagedFund','ausUnity','miscShares'];
 const SUPER_FIELDS   = ['collJohnSuper','collRheaSuper','ausSuper','art'];
 const PROP_FIELDS    = ['acaciaHouse','benNevis','warillaUnit'];
 const INCOME_FIELDS  = ['salaryAfterTax','rent','invInterestRate','hlInterestRate'];
-const FIRE_FIELDS    = ['monthlyExpenses','monthlySavings','swr','expectedReturn','currentAge','targetRetireAge'];
+const FIRE_FIELDS    = ['monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 
 
 
@@ -1951,10 +2109,11 @@ async function loadFromDrive(isAutoLoad) {
       RAW = json.RAW;
       if (json.LABELS) LABELS = Object.assign({}, DEFAULT_LABELS, json.LABELS);
       if (Array.isArray(json.USER_FORMULAS)) USER_FORMULAS = json.USER_FORMULAS;
+      if (Array.isArray(json.FIRE_SALES)) FIRE_SALES = json.FIRE_SALES;
       DATA = enrichAll();
       renderKPIs(); renderForm(); renderLabelsList(); prefillLast();
       populateSelects(); renderOvChart(); renderPieTogs(); renderPie(); renderPropChart();
-      renderMetricTogs(); renderCustom(); renderFireChart();
+      renderMetricTogs(); renderCustom(); renderFireChart(); renderFireLevers();
       if (document.getElementById('page-data')?.classList.contains('active')) renderTable();
     }
     setDriveButtonState('synced', 'Synced');
@@ -1981,7 +2140,7 @@ async function saveToDrive() {
       if (existing) gDriveFileId = existing.id;
     }
     const payload = JSON.stringify({
-      RAW, LABELS, USER_FORMULAS,
+      RAW, LABELS, USER_FORMULAS, FIRE_SALES,
       savedAt: new Date().toISOString()
     }, null, 2);
 
