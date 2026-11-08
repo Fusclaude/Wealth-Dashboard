@@ -171,12 +171,40 @@ body {
   border-radius: 14px;
   padding: 12px 12px 10px;
   border-left: 3px solid var(--blue);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .kpi-lbl  { font-size: .65rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .6px; }
 .kpi-val  { font-size: 1.25rem; font-weight: 700; margin: 5px 0 3px; }
 .kpi-delta{ font-size: .7rem; }
 .up   { color: var(--green); }
 .down { color: var(--red); }
+
+/* ── KPI CALC TOOLTIP ─────────────────────────────── */
+.kpi-tooltip {
+  position: fixed;
+  z-index: 250;
+  width: 240px;
+  max-width: calc(100vw - 24px);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: .72rem;
+  color: var(--txt2);
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity .12s, transform .12s;
+}
+.kpi-tooltip.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.kpi-tooltip .kt-title { font-weight: 700; color: var(--txt); margin-bottom: 5px; }
+.kpi-tooltip .kt-expr  { font-family: monospace; font-size: .7rem; color: var(--blue); word-break: break-word; }
+.kpi-tooltip .kt-raw   { font-family: monospace; font-size: .63rem; color: var(--txt3); margin-top: 6px; word-break: break-word; }
+.kpi-tooltip .kt-cur   { margin-top: 6px; color: var(--txt2); }
+.kpi-tooltip .kt-cur b { color: var(--green); }
 
 /* ── CHART CONTAINER ──────────────────────────────── */
 .chart-box {
@@ -551,6 +579,7 @@ tr:nth-child(even) td { background: #192433; }
 </div>
 
 <div class="sync-toast" id="sync-toast"></div>
+<div class="kpi-tooltip" id="kpi-tooltip" onclick="event.stopPropagation()"></div>
 
 <!-- ── MAIN CONTENT ─────────────────────────────────── -->
 <div class="main">
@@ -558,6 +587,11 @@ tr:nth-child(even) td { background: #192433; }
 <!-- PAGE: OVERVIEW -->
 <div id="page-overview" class="page active">
   <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="card" id="summary-card">
+    <div class="card-title">📝 Monthly Update Summary</div>
+    <p id="summary-text" style="font-size:.8rem;color:var(--txt2);line-height:1.7;margin:0"></p>
+  </div>
 
   <div class="card">
     <div class="card-title">
@@ -569,12 +603,12 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="ov-from" onchange="renderOvChart()"></select>
+      <select id="ov-from" onchange="clearPillActive(this);renderOvChart()"></select>
       <label>To</label>
-      <select id="ov-to" onchange="renderOvChart()"></select>
-      <button class="pill-btn" onclick="setR('ov',99)">All</button>
-      <button class="pill-btn" onclick="setR('ov',6)">6M</button>
-      <button class="pill-btn" onclick="setR('ov',3)">3M</button>
+      <select id="ov-to" onchange="clearPillActive(this);renderOvChart()"></select>
+      <button class="pill-btn active" onclick="setR('ov',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('ov',6,this)">6M</button>
+      <button class="pill-btn" onclick="setR('ov',3,this)">3M</button>
     </div>
     <div class="chart-box" style="height:220px"><canvas id="ch-ov"></canvas></div>
   </div>
@@ -596,11 +630,11 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="pr-from" onchange="renderPropChart()"></select>
+      <select id="pr-from" onchange="clearPillActive(this);renderPropChart()"></select>
       <label>To</label>
-      <select id="pr-to" onchange="renderPropChart()"></select>
-      <button class="pill-btn" onclick="setR('pr',99)">All</button>
-      <button class="pill-btn" onclick="setR('pr',6)">6M</button>
+      <select id="pr-to" onchange="clearPillActive(this);renderPropChart()"></select>
+      <button class="pill-btn active" onclick="setR('pr',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('pr',6,this)">6M</button>
     </div>
     <div class="chart-box" style="height:190px"><canvas id="ch-prop"></canvas></div>
   </div>
@@ -617,12 +651,12 @@ tr:nth-child(even) td { background: #192433; }
     </div>
     <div class="date-strip">
       <label>From</label>
-      <select id="cu-from" onchange="renderCustom()"></select>
+      <select id="cu-from" onchange="clearPillActive(this);renderCustom()"></select>
       <label>To</label>
-      <select id="cu-to" onchange="renderCustom()"></select>
-      <button class="pill-btn" onclick="setR('cu',99)">All</button>
-      <button class="pill-btn" onclick="setR('cu',6)">6M</button>
-      <button class="pill-btn" onclick="setR('cu',3)">3M</button>
+      <select id="cu-to" onchange="clearPillActive(this);renderCustom()"></select>
+      <button class="pill-btn active" onclick="setR('cu',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('cu',6,this)">6M</button>
+      <button class="pill-btn" onclick="setR('cu',3,this)">3M</button>
     </div>
     <div class="chart-box" style="height:240px;margin-bottom:14px"><canvas id="ch-cu"></canvas></div>
     <input class="metric-search" type="search" id="metric-search" placeholder="🔍 Search fields…" oninput="renderMetricTogs()">
@@ -683,6 +717,9 @@ tr:nth-child(even) td { background: #192433; }
   <div class="form-section-hdr">💰 Income & Rates</div>
   <div class="field-grid" id="fg-income"></div>
 
+  <div class="form-section-hdr">🔥 FIRE Planning</div>
+  <div class="field-grid" id="fg-fire"></div>
+
   <div class="form-section-hdr green">
     ✅ Calculated Outputs
     <button class="btn-sm green" onclick="openFmlModal()">🔢 Edit Formulas</button>
@@ -693,6 +730,132 @@ tr:nth-child(even) td { background: #192433; }
     <button class="btn btn-green" onclick="saveEntry()">💾 Save</button>
     <button class="btn btn-grey"  onclick="clearForm()">↩ Reset</button>
     <button class="btn btn-red"   id="del-btn" style="display:none;flex:0 0 auto;padding:13px 16px" onclick="deleteEntry()">🗑</button>
+  </div>
+</div>
+
+<!-- PAGE: FIRE -->
+<div id="page-fire" class="page">
+  <div class="note-box" id="fire-empty-note" style="display:none">
+    Fill in <strong>Monthly Living Expenses</strong> under 🔥 FIRE Planning on the <strong>Add</strong> page to calculate your FIRE number.
+  </div>
+
+  <div class="sec-title" style="margin-top:0">📌 Based on your saved data</div>
+  <div class="kpi-grid" id="fire-grid"></div>
+
+  <div class="card">
+    <div class="card-title">Net Worth vs FIRE Number</div>
+    <p id="fire-assumptions" style="font-size:.72rem;color:var(--txt3);margin-bottom:10px;line-height:1.5"></p>
+    <div class="date-strip">
+      <label>From</label>
+      <select id="fi-from" onchange="clearPillActive(this);renderFireChart()"></select>
+      <label>To</label>
+      <select id="fi-to" onchange="clearPillActive(this);renderFireChart()"></select>
+      <button class="pill-btn active" onclick="setR('fi',99,this)">All</button>
+      <button class="pill-btn" onclick="setR('fi',6,this)">6M</button>
+      <button class="pill-btn" onclick="setR('fi',3,this)">3M</button>
+    </div>
+    <div class="chart-box" style="height:220px"><canvas id="ch-fire"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Estimated Time to FI</div>
+    <p id="fire-projection" style="font-size:.8rem;color:var(--txt2);line-height:1.7;margin:0"></p>
+  </div>
+
+  <div class="sec-title">🎛️ Explore scenarios (doesn't change saved data)</div>
+  <div class="card">
+    <div class="card-title">
+      Quick Levers
+      <button class="btn-sm" onclick="resetFireLevers()">↺ Reset</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:12px">Drag to see how retirement age, spending and returns change your runway.</p>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>John — Current Age</span><span id="lv-johnAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-johnAge" min="18" max="80" step="1" oninput="updateLever('johnAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>John — Retirement Age</span><span id="lv-johnRetireAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-johnRetireAge" min="40" max="80" step="1" oninput="updateLever('johnRetireAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Rhea — Current Age</span><span id="lv-rheaAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-rheaAge" min="18" max="80" step="1" oninput="updateLever('rheaAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Rhea — Retirement Age</span><span id="lv-rheaRetireAge-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-rheaRetireAge" min="40" max="80" step="1" oninput="updateLever('rheaRetireAge',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:.68rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Retirement starts when</div>
+      <div class="type-row" style="margin:0">
+        <button class="type-btn active" id="rt-both" onclick="setRetireTrigger('both')">Both retire</button>
+        <button class="type-btn"        id="rt-first" onclick="setRetireTrigger('first')">Either retires</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Monthly Expenses</span><span id="lv-monthlyExpenses-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-monthlyExpenses" min="0" max="20000" step="100" oninput="updateLever('monthlyExpenses',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Retirement Spend (% of pre-retirement)</span><span id="lv-retireSpendPct-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-retireSpendPct" min="40" max="120" step="5" oninput="updateLever('retireSpendPct',this.value)" style="width:100%">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Expected Annual Return</span><span id="lv-expectedReturn-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-expectedReturn" min="0" max="12" step="0.5" oninput="updateLever('expectedReturn',this.value)" style="width:100%">
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Monthly Savings/Investing</span><span id="lv-monthlySavings-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-monthlySavings" min="0" max="20000" step="100" oninput="updateLever('monthlySavings',this.value)" style="width:100%">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📅 Scheduled Asset Sales</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">
+      Schedule a future sale of a tracked property or share holding. Proceeds pay off its linked loan first (if any), with the remainder added to your liquid savings in the projection below. No CGT or other tax is modelled.
+    </p>
+    <div id="fire-sales-list" style="margin-bottom:10px"></div>
+    <div class="date-strip" style="margin-bottom:0">
+      <select class="select-ctrl" id="sale-asset" style="flex:2"></select>
+      <input type="number" id="sale-year" class="field-input" placeholder="Year" style="flex:1;padding:8px 10px;font-size:.78rem">
+      <button class="btn-sm green" onclick="addFireSale()">+ Add</button>
+    </div>
+  </div>
+
+  <div class="note-box" id="fire-banner" style="display:none"></div>
+
+  <div class="kpi-grid" id="fire-sim-stats"></div>
+
+  <div class="card">
+    <div class="card-title">Projected Net Worth (with levers &amp; sales)</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Accumulates at your expected return + savings until retirement, then draws down liquid savings for expenses. Scheduled sales convert property/share value into liquid funds. Flatlines at $0 if liquid funds run out.</p>
+    <div class="chart-box" style="height:200px"><canvas id="ch-fire-proj"></canvas></div>
   </div>
 </div>
 
@@ -724,6 +887,9 @@ tr:nth-child(even) td { background: #192433; }
   </button>
   <button class="nav-btn" id="nav-add"      onclick="showPage('add',this)">
     <span class="nav-icon">➕</span><span class="nav-label">Add</span>
+  </button>
+  <button class="nav-btn" id="nav-fire"     onclick="showPage('fire',this)">
+    <span class="nav-icon">🔥</span><span class="nav-label">FIRE</span>
   </button>
   <button class="nav-btn" id="nav-settings" onclick="showPage('settings',this)">
     <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
@@ -783,6 +949,14 @@ const DEFAULT_LABELS = {
   hlInterestRate:   'Home Loan Interest Rate (%)',
   rent:             'Monthly Rent ($)',
   salaryAfterTax:   'Salary After Tax (annual $)',
+  monthlyExpenses:  'Monthly Living Expenses ($)',
+  monthlySavings:   'Est. Monthly Savings/Investing ($)',
+  swr:              'Safe Withdrawal Rate (%)',
+  expectedReturn:   'Expected Annual Return (%)',
+  johnAge:          "John's Current Age",
+  johnRetireAge:    "John's Retirement Age",
+  rheaAge:          "Rhea's Current Age",
+  rheaRetireAge:    "Rhea's Retirement Age",
 };
 let LABELS = JSON.parse(JSON.stringify(DEFAULT_LABELS));
 
@@ -809,10 +983,13 @@ const BUILTIN_FORMULAS = [
   { key:'equityHome',       label:'Equity (ex Ben Nevis)',      expr:'netWorth - benNevis', builtIn:true },
   { key:'equityHomeSuper',  label:'Equity (ex BN & Super)',     expr:'equityHome - totalSuper', builtIn:true },
   { key:'yearlyIncome',     label:'Yearly Income Estimate',     expr:'rent * 52 * 0.8 + ausUnity * 0.04 + collManagedFund * 0.03 + repayInv * 12', builtIn:true },
-  { key:'annualInterestCost',label:'Total Annual Interest Cost', expr:'-(homeLoan * hlInterestRate / 100) + -(invLoan * invInterestRate / 100)', builtIn:true },
+  { key:'monthlyInterestCost',label:'Total Monthly Interest Cost', expr:'(-(homeLoan * hlInterestRate / 100) + -(invLoan * invInterestRate / 100)) / 12', builtIn:true },
   { key:'lvrAcacia',        label:'Acacia House LVR (%)',       expr:'-(acaciaInvLoan) / acaciaHouse * 100', builtIn:true },
   { key:'lvrBenNevis',      label:'Ben Nevis LVR (%)',          expr:'-(bnHomeLoan + bnInvLoan) / benNevis * 100', builtIn:true },
   { key:'lvrPortfolio',     label:'Portfolio LVR (%)',          expr:'-(totalLiabilities) / totalProperty * 100', builtIn:true },
+  { key:'fireNumber',       label:'FIRE Number',                expr:'monthlyExpenses > 0 ? monthlyExpenses * 12 / ((swr||4) / 100) : 0', builtIn:true },
+  { key:'fireProgress',     label:'FIRE Progress (%)',          expr:'monthlyExpenses > 0 ? (netWorth / fireNumber * 100) : 0', builtIn:true },
+  { key:'fireGap',          label:'FIRE Gap (remaining $)',      expr:'fireNumber - netWorth', builtIn:true },
 ];
 
 let USER_FORMULAS = [];
@@ -826,7 +1003,8 @@ const ALL_INPUT_VARS = [
   'leOffsetShares','bnInvOffset','bnHomeLoanOffset',
   'collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity',
   'miscShares','acaciaHouse','benNevis','warillaUnit',
-  'invInterestRate','hlInterestRate','rent','salaryAfterTax'
+  'invInterestRate','hlInterestRate','rent','salaryAfterTax',
+  'monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'
 ];
 
 function evalFormulas(inputRow) {
@@ -898,6 +1076,7 @@ function showPage(name, btn) {
   if (name === 'charts')   { populateSelects(); renderMetricTogs(); renderCustom(); }
   if (name === 'data')     renderTable();
   if (name === 'add' && !editingDate) prefillLast();
+  if (name === 'fire')     { populateSelects(); renderFireStats(); renderFireChart(); renderFireLevers(); }
   if (name === 'settings') renderLabelsList();
 }
 
@@ -905,7 +1084,7 @@ function showPage(name, btn) {
 //  DATE RANGE SELECTS
 // ══════════════════════════════════════════════════════════════════
 function populateSelects() {
-  const pairs = [['ov-from','ov-to'],['pr-from','pr-to'],['cu-from','cu-to']];
+  const pairs = [['ov-from','ov-to'],['pr-from','pr-to'],['cu-from','cu-to'],['fi-from','fi-to']];
   pairs.forEach(([fid,tid]) => {
     const fs = document.getElementById(fid), ts = document.getElementById(tid);
     if (!fs || !ts) return;
@@ -924,14 +1103,22 @@ function getRange(prefix) {
   if (!fs || !ts) return DATA;
   return DATA.filter(r => r.date >= fs.value && r.date <= ts.value);
 }
-function setR(prefix, backN) {
+function clearPillActive(el) {
+  el.closest('.date-strip')?.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+}
+function setR(prefix, backN, btn) {
   const fs = document.getElementById(prefix+'-from'), ts = document.getElementById(prefix+'-to');
   if (!fs || !ts) return;
   fs.value = RAW[Math.max(0, RAW.length - backN)].date;
   ts.value = RAW[RAW.length-1].date;
+  if (btn) {
+    btn.closest('.date-strip')?.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
   if (prefix==='ov') renderOvChart();
   else if (prefix==='pr') renderPropChart();
   else if (prefix==='cu') renderCustom();
+  else if (prefix==='fi') renderFireChart();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -940,27 +1127,495 @@ function setR(prefix, backN) {
 function renderKPIs() {
   const last = DATA[DATA.length-1], prev = DATA[DATA.length-2] || last;
   const kpis = [
-    ['Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
-    ['Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
-    ['Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c'],
-    ['Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
-    ['Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
-    ['Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
-    ['Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct'],
-    ['Annual Interest', last.annualInterestCost, prev.annualInterestCost, '#e91e63'],
+    ['totalAsset',         'Total Assets',    last.totalAsset,     prev.totalAsset,     '#4a90d9'],
+    ['netWorth',           'Net Worth',       last.netWorth,        prev.netWorth,        '#27ae60'],
+    ['totalLiabilities',   'Total Liabilities',Math.abs(last.totalLiabilities),Math.abs(prev.totalLiabilities),'#e74c3c', null, true],
+    ['totalSuper',         'Total Super',     last.totalSuper,      prev.totalSuper,      '#8e44ad'],
+    ['totalShares',        'Total Shares',    last.totalShares,     prev.totalShares,     '#f39c12'],
+    ['netCashFlow',        'Net Cash Flow',   last.netCashFlow,     prev.netCashFlow,     '#1abc9c'],
+    ['lvrPortfolio',       'Portfolio LVR',   last.lvrPortfolio,    prev.lvrPortfolio,    '#e67e22', 'pct', true],
+    ['monthlyInterestCost','Monthly Interest', last.monthlyInterestCost, prev.monthlyInterestCost, '#e91e63', null, true],
   ];
-  document.getElementById('kpi-grid').innerHTML = kpis.map(([lbl,cur,prv,c,mode]) => {
-    const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0, up = pct >= 0;
+  document.getElementById('kpi-grid').innerHTML = kpis.map(([key,lbl,cur,prv,c,mode,invert]) => {
+    const pct = prv ? ((cur-prv)/Math.abs(prv)*100) : 0;
+    const rose = pct >= 0;
+    const good = invert ? !rose : rose;
     const valStr = mode === 'pct' ? cur.toFixed(1) + '%' : fmt(cur);
-    return `<div class="kpi-card" style="border-left-color:${c}">
+    return `<div class="kpi-card" style="border-left-color:${c}" data-key="${key}"
+        onclick="toggleKpiCalc(this,'${key}')"
+        onmouseenter="showKpiCalc(this,'${key}')"
+        onmouseleave="hideKpiCalc()">
       <div class="kpi-lbl">${lbl}</div>
       <div class="kpi-val" style="color:${c}">${valStr}</div>
-      <div class="kpi-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
+      <div class="kpi-delta ${good?'up':'down'}">${rose?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</div>
     </div>`;
   }).join('');
   document.getElementById('subtitle').textContent =
     `Portfolio Snapshot  ·  ${shortDate(last.date)}  ·  ${RAW.length} months tracked`;
+  renderSummary();
+  renderFireStats();
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  MONTHLY UPDATE SUMMARY — refreshed whenever renderKPIs() runs
+//  (page load, save, delete, Drive load)
+// ══════════════════════════════════════════════════════════════════
+function renderSummary() {
+  const el = document.getElementById('summary-text');
+  if (!el) return;
+  if (DATA.length < 2) {
+    el.textContent = 'Add another month of data to see a change summary here.';
+    return;
+  }
+  const cur = DATA[DATA.length-1], prev = DATA[DATA.length-2];
+  const parts = [];
+
+  const nwDelta = cur.netWorth - prev.netWorth;
+  const nwPct = prev.netWorth ? (nwDelta/Math.abs(prev.netWorth))*100 : 0;
+  parts.push(`Net worth ${nwDelta>=0?'rose':'fell'} ${fmt(Math.abs(nwDelta))} (${nwDelta>=0?'+':'-'}${Math.abs(nwPct).toFixed(1)}%) to ${fmt(cur.netWorth)} vs ${shortDate(prev.date)}.`);
+
+  const moverKeys = [...LOAN_FIELDS, ...OFFSET_FIELDS, ...SHARE_FIELDS, ...SUPER_FIELDS, ...PROP_FIELDS];
+  let top = null;
+  moverKeys.forEach(k => {
+    const d = (cur[k]||0) - (prev[k]||0);
+    if (!top || Math.abs(d) > Math.abs(top.d)) top = { k, d };
+  });
+  if (top && Math.abs(top.d) > 0.5) {
+    parts.push(`Biggest mover: ${L(top.k)} ${top.d>=0?'+':'-'}${fmt(Math.abs(top.d))}.`);
+  }
+
+  if (typeof cur.lvrPortfolio === 'number' && typeof prev.lvrPortfolio === 'number') {
+    const lvrDelta = cur.lvrPortfolio - prev.lvrPortfolio;
+    if (Math.abs(lvrDelta) > 0.05) {
+      parts.push(`Portfolio LVR ${lvrDelta>=0?'rose':'fell'} ${Math.abs(lvrDelta).toFixed(1)}pts to ${cur.lvrPortfolio.toFixed(1)}% (${lvrDelta>=0?'more':'less'} leveraged).`);
+    }
+  }
+
+  if (typeof cur.monthlyInterestCost === 'number' && typeof prev.monthlyInterestCost === 'number') {
+    const intDelta = cur.monthlyInterestCost - prev.monthlyInterestCost;
+    if (Math.abs(intDelta) > 0.5) {
+      parts.push(`Monthly interest cost ${intDelta>=0?'increased':'decreased'} ${fmt(Math.abs(intDelta))} to ${fmt(cur.monthlyInterestCost)}/mo.`);
+    }
+  }
+
+  el.textContent = parts.join(' ');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FIRE CALCULATOR
+// ══════════════════════════════════════════════════════════════════
+function estimateMonthsToFire(row) {
+  const expenses = row.monthlyExpenses || 0;
+  if (!expenses) return null;
+  const fireNum = row.fireNumber;
+  let nw = row.netWorth;
+  if (nw >= fireNum) return 0;
+  const r = (row.expectedReturn || 7) / 100 / 12;
+  const c = row.monthlySavings || 0;
+  const maxMonths = 100 * 12;
+  let months = 0;
+  while (nw < fireNum && months < maxMonths) {
+    nw = nw * (1 + r) + c;
+    months++;
+  }
+  return months < maxMonths ? months : null;
+}
+
+function fireProjectionText(row) {
+  const expenses = row.monthlyExpenses || 0;
+  if (!expenses) return 'Fill in your FIRE planning fields on the Add page to see a projection.';
+  if (row.netWorth >= row.fireNumber) return `🎉 You've already reached your FIRE number of ${fmt(row.fireNumber)}!`;
+  const months = estimateMonthsToFire(row);
+  if (months == null) return `At the current savings and return assumptions, FIRE isn't reached within 100 years — try raising Est. Monthly Savings or Expected Annual Return.`;
+  const years = Math.floor(months / 12), rem = months % 12;
+  const target = new Date();
+  target.setMonth(target.getMonth() + months);
+  const targetStr = target.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  let txt = `At ${fmt(row.monthlySavings||0)}/mo savings and ${row.expectedReturn||7}% expected return, you're projected to reach FI in ${years>0?years+'y ':''}${rem}mo (~${targetStr}).`;
+  if (row.johnAge) {
+    const johnAtFire = (+row.johnAge) + months/12;
+    txt += ` That's around John's age ${johnAtFire.toFixed(1)}`;
+    if (row.rheaAge) txt += ` (Rhea's age ${((+row.rheaAge)+months/12).toFixed(1)})`;
+    txt += '.';
+    const retireTarget = Math.max(+row.johnRetireAge || 0, +row.rheaRetireAge || 0);
+    if (retireTarget) {
+      const diff = retireTarget - johnAtFire;
+      txt += diff >= 0
+        ? ` You're on track to beat your household's latest target retirement age of ${retireTarget} by ~${diff.toFixed(1)} years.`
+        : ` That's ~${Math.abs(diff).toFixed(1)} years later than your household's latest target retirement age of ${retireTarget}.`;
+    }
+  }
+  return txt;
+}
+
+function renderFireStats() {
+  const grid = document.getElementById('fire-grid');
+  if (!grid) return;
+  const last = DATA[DATA.length-1];
+  const hasExpenses = (last.monthlyExpenses || 0) > 0;
+  const note = document.getElementById('fire-empty-note');
+  if (note) note.style.display = hasExpenses ? 'none' : 'block';
+  const reached = hasExpenses && last.netWorth >= last.fireNumber;
+
+  const stats = [
+    ['FIRE Number', hasExpenses ? fmt(last.fireNumber) : '–', '#e67e22'],
+    ['Progress',    hasExpenses ? Math.min(999,last.fireProgress).toFixed(1)+'%' : '–', '#27ae60'],
+    ['Remaining',   hasExpenses ? (reached ? '🎉 Reached' : fmt(Math.max(0,last.fireGap))) : '–', '#4a90d9'],
+    ['Net Worth',   fmt(last.netWorth), '#8e44ad'],
+  ];
+  grid.innerHTML = stats.map(([lbl,val,c]) => `
+    <div class="kpi-card" style="border-left-color:${c}">
+      <div class="kpi-lbl">${lbl}</div>
+      <div class="kpi-val" style="color:${c};font-size:1.1rem">${val}</div>
+    </div>`).join('');
+
+  const assum = document.getElementById('fire-assumptions');
+  if (assum) {
+    assum.textContent = hasExpenses
+      ? `Based on ${fmt(last.monthlyExpenses)}/mo expenses, ${last.swr||4}% safe withdrawal rate, ${last.expectedReturn||7}% expected return, ${fmt(last.monthlySavings||0)}/mo savings — as of ${shortDate(last.date)}.`
+      : 'Fill in your FIRE planning fields on the Add page to set your assumptions.';
+  }
+
+  const proj = document.getElementById('fire-projection');
+  if (proj) proj.textContent = fireProjectionText(last);
+}
+
+function renderFireChart() {
+  const d = getRange('fi');
+  const labels = d.map(r => shortDate(r.date));
+  const datasets = [
+    { label:'Net Worth', data:d.map(r=>r.netWorth||0),
+      borderColor:'#27ae60', backgroundColor:'#27ae6022', fill:false, tension:.4, pointRadius:4, borderWidth:2.5 },
+    { label:'FIRE Number', data:d.map(r => (r.monthlyExpenses||0) > 0 ? r.fireNumber : null),
+      borderColor:'#e67e22', backgroundColor:'#e67e2222', fill:false, tension:0, pointRadius:3, borderWidth:2, borderDash:[6,4], spanGaps:true },
+  ];
+  destroyChart('ch-fire');
+  CHARTS['ch-fire'] = new Chart(document.getElementById('ch-fire'), {
+    type:'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FIRE QUICK LEVERS — year-by-year accumulation + retirement drawdown
+//  simulation driven by on-page sliders. Pure what-if: never written
+//  back to RAW/Drive.
+// ══════════════════════════════════════════════════════════════════
+const LEVER_KEYS = ['johnAge','johnRetireAge','rheaAge','rheaRetireAge','monthlyExpenses','retireSpendPct','expectedReturn','monthlySavings'];
+let fireLevers = null;
+let fireRetireTrigger = 'both';
+
+// Tracked properties/shares, each optionally linked to the one loan its
+// sale proceeds pay off first. Used only for Scheduled Asset Sales below —
+// everything else (super, offsets, misc) stays pooled as "other".
+const PROPERTY_ASSETS = [
+  { key:'acaciaHouse', loanKey:'acaciaInvLoan' },
+  { key:'benNevis',    loanKey:'bnHomeLoan' },
+  { key:'warillaUnit', loanKey:null },
+];
+const SHARE_ASSETS = [
+  { key:'collManagedFund' }, { key:'ausUnity' }, { key:'miscShares' },
+];
+const SALE_LOAN_KEYS = ['bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan'];
+
+let FIRE_SALES = [];
+
+function saleableAssets() {
+  return [
+    ...PROPERTY_ASSETS.map(p => ({ type:'property', key:p.key, label:L(p.key) })),
+    ...SHARE_ASSETS.map(s => ({ type:'share', key:s.key, label:L(s.key) })),
+  ];
+}
+
+function renderFireSales() {
+  const sel = document.getElementById('sale-asset');
+  if (sel) sel.innerHTML = saleableAssets().map(a => `<option value="${a.type}|${a.key}">${a.label}</option>`).join('');
+  const list = document.getElementById('fire-sales-list');
+  if (!list) return;
+  if (!FIRE_SALES.length) { list.innerHTML = '<p style="font-size:.72rem;color:var(--txt3)">No sales scheduled yet.</p>'; return; }
+  const assetsByKey = Object.fromEntries(saleableAssets().map(a => [a.type+'|'+a.key, a.label]));
+  list.innerHTML = [...FIRE_SALES].sort((a,b)=>a.year-b.year).map(s => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bg3)">
+      <span style="flex:1;font-size:.78rem;color:var(--txt)">${assetsByKey[s.assetType+'|'+s.assetKey] || s.assetKey}</span>
+      <span style="font-size:.78rem;color:var(--blue)">${s.year}</span>
+      <button class="edit-row-btn" onclick="removeFireSale('${s.id}')">🗑</button>
+    </div>`).join('');
+}
+
+function addFireSale() {
+  const sel = document.getElementById('sale-asset');
+  const yearEl = document.getElementById('sale-year');
+  const year = parseInt(yearEl?.value, 10);
+  if (!sel?.value || !year) { alert('Pick an asset and a year.'); return; }
+  const [assetType, assetKey] = sel.value.split('|');
+  FIRE_SALES.push({ id: 'sale'+Date.now(), assetType, assetKey, year });
+  FIRE_SALES.sort((a,b)=>a.year-b.year);
+  if (yearEl) yearEl.value = '';
+  renderFireSales();
+  renderFireProjection();
+  if (gIsSignedIn) saveToDrive();
+  else showToast('Saved locally — sign in to sync to Drive', '');
+}
+
+function removeFireSale(id) {
+  FIRE_SALES = FIRE_SALES.filter(s => s.id !== id);
+  renderFireSales();
+  renderFireProjection();
+  if (gIsSignedIn) saveToDrive();
+}
+
+function setRetireTrigger(v) {
+  fireRetireTrigger = v;
+  document.getElementById('rt-both')?.classList.toggle('active', v === 'both');
+  document.getElementById('rt-first')?.classList.toggle('active', v === 'first');
+  renderFireProjection();
+}
+
+function getFireLeverRow() {
+  const last = DATA[DATA.length-1];
+  if (!fireLevers) {
+    fireLevers = {
+      johnAge:         last.johnAge || 35,
+      johnRetireAge:   last.johnRetireAge || Math.max((last.johnAge||35)+1, 60),
+      rheaAge:         last.rheaAge || 35,
+      rheaRetireAge:   last.rheaRetireAge || Math.max((last.rheaAge||35)+1, 60),
+      monthlyExpenses: last.monthlyExpenses || 0,
+      retireSpendPct:  100,
+      expectedReturn:  last.expectedReturn || 7,
+      monthlySavings:  last.monthlySavings || 0,
+    };
+  }
+  const swr = last.swr || 4;
+  const fireNumber = fireLevers.monthlyExpenses > 0 ? (fireLevers.monthlyExpenses * 12) / (swr/100) : 0;
+  return {
+    netWorth: last.netWorth,
+    johnAge: fireLevers.johnAge,
+    johnRetireAge: fireLevers.johnRetireAge,
+    rheaAge: fireLevers.rheaAge,
+    rheaRetireAge: fireLevers.rheaRetireAge,
+    monthlyExpenses: fireLevers.monthlyExpenses,
+    monthlySavings: fireLevers.monthlySavings,
+    expectedReturn: fireLevers.expectedReturn,
+    retireSpendPct: fireLevers.retireSpendPct,
+    fireNumber,
+  };
+}
+
+function buildAssetPools(lastRow) {
+  const properties = PROPERTY_ASSETS.map(p => ({ key:p.key, loanKey:p.loanKey, value: lastRow[p.key]||0, sold:false }));
+  const shares = SHARE_ASSETS.map(s => ({ key:s.key, value: lastRow[s.key]||0, sold:false }));
+  const loans = {};
+  SALE_LOAN_KEYS.forEach(k => { loans[k] = Math.abs(lastRow[k]||0); });
+  const itemized = properties.reduce((a,p)=>a+p.value,0) + shares.reduce((a,s)=>a+s.value,0)
+    - Object.values(loans).reduce((a,v)=>a+v,0);
+  return { properties, shares, loans, other: lastRow.netWorth - itemized };
+}
+
+// Year-by-year: accumulate (grow + save) before retirement, draw down
+// liquid "other" savings for expenses after. Expenses switch to
+// retireSpendPct of pre-retirement spend once retirement triggers
+// (both partners retired, or either — per fireRetireTrigger). Scheduled
+// sales convert a property/share's value to liquid funds in its sale
+// year, paying off its linked loan first. No tax (incl. CGT) modelled.
+function simulateFireProjection(row, lastRow, maxYears) {
+  maxYears = maxYears || 60;
+  const r = (row.expectedReturn || 7) / 100;
+  const pools = buildAssetPools(lastRow);
+  let other = pools.other;
+  let johnAge = row.johnAge, rheaAge = row.rheaAge;
+  const preExpenses = row.monthlyExpenses * 12;
+  let expenses = preExpenses;
+  let expensesAdjusted = false;
+  const thisYear = new Date().getFullYear();
+  const rows = [];
+  let fundsOutAge = null;
+
+  for (let i = 0; i < maxYears; i++) {
+    const calYear = thisYear + i;
+
+    FIRE_SALES.filter(s => s.year === calYear).forEach(sale => {
+      if (sale.assetType === 'property') {
+        const p = pools.properties.find(x => x.key === sale.assetKey);
+        if (p && !p.sold) {
+          let proceeds = p.value;
+          if (p.loanKey && pools.loans[p.loanKey] != null) {
+            const payoff = Math.min(proceeds, pools.loans[p.loanKey]);
+            pools.loans[p.loanKey] -= payoff; proceeds -= payoff;
+          }
+          other += proceeds; p.sold = true; p.value = 0;
+        }
+      } else {
+        const s = pools.shares.find(x => x.key === sale.assetKey);
+        if (s && !s.sold) { other += s.value; s.sold = true; s.value = 0; }
+      }
+    });
+
+    pools.properties.forEach(p => { if (!p.sold) p.value *= (1 + r); });
+    pools.shares.forEach(s => { if (!s.sold) s.value *= (1 + r); });
+    other *= (1 + r);
+
+    const johnRet = johnAge >= row.johnRetireAge, rheaRet = rheaAge >= row.rheaRetireAge;
+    const retired = fireRetireTrigger === 'both' ? (johnRet && rheaRet) : (johnRet || rheaRet);
+
+    if (retired) {
+      if (!expensesAdjusted) { expenses = preExpenses * ((row.retireSpendPct || 100) / 100); expensesAdjusted = true; }
+      other = Math.max(0, other - expenses);
+      if (other <= 0 && fundsOutAge == null) fundsOutAge = johnAge;
+    } else {
+      other += row.monthlySavings * 12;
+    }
+
+    const totalLoans = Object.values(pools.loans).reduce((a,v)=>a+v,0);
+    const netWorth = other + pools.properties.reduce((a,p)=>a+p.value,0) + pools.shares.reduce((a,s)=>a+s.value,0) - totalLoans;
+    rows.push({ age: johnAge, rheaAge, netWorth });
+
+    johnAge++; rheaAge++;
+  }
+  return { rows, fundsOutAge };
+}
+
+function updateLever(key, val) {
+  getFireLeverRow();
+  fireLevers[key] = parseFloat(val);
+  renderFireProjection();
+}
+
+function resetFireLevers() {
+  fireLevers = null;
+  renderFireLevers();
+}
+
+function renderFireLevers() {
+  renderFireSales();
+  const row = getFireLeverRow();
+  LEVER_KEYS.forEach(k => { const el = document.getElementById('lv-'+k); if (el) el.value = fireLevers[k]; });
+  renderFireProjection();
+}
+
+function renderFireProjection() {
+  const row = getFireLeverRow();
+  const fmtLever = (k, v) => {
+    if (k === 'monthlyExpenses' || k === 'monthlySavings') return fmt(v);
+    if (k === 'expectedReturn' || k === 'retireSpendPct') return v + '%';
+    return Math.round(v);
+  };
+  LEVER_KEYS.forEach(k => { const d = document.getElementById('lv-'+k+'-val'); if (d) d.textContent = fmtLever(k, fireLevers[k]); });
+
+  const banner = document.getElementById('fire-banner');
+  const statsEl = document.getElementById('fire-sim-stats');
+
+  if (row.monthlyExpenses <= 0) {
+    if (banner) banner.style.display = 'none';
+    if (statsEl) statsEl.innerHTML = '';
+    destroyChart('ch-fire-proj');
+    return;
+  }
+
+  const sim = simulateFireProjection(row, DATA[DATA.length-1]);
+
+  if (banner) {
+    banner.style.display = 'block';
+    if (sim.fundsOutAge != null) {
+      banner.style.borderColor = 'var(--red)';
+      banner.innerHTML = `<strong style="color:var(--red)">Liquid funds run out around John's age ${sim.fundsOutAge}</strong> at these settings — try retiring later, trimming spend, scheduling a sale, or raising savings/return.`;
+    } else {
+      const lastAge = row.johnAge + sim.rows.length - 1;
+      banner.style.borderColor = 'var(--green)';
+      banner.innerHTML = `<strong style="color:var(--green)">Your money lasts through John's age ${lastAge}</strong> at these settings — it doesn't run out.`;
+    }
+  }
+
+  if (statsEl) {
+    statsEl.innerHTML = [
+      ['Funds Last Until', sim.fundsOutAge != null ? ("John's age "+sim.fundsOutAge) : `60+ yrs`, sim.fundsOutAge != null ? '#e74c3c' : '#27ae60'],
+      ['FIRE Number (levers)', fmt(row.fireNumber), '#e67e22'],
+    ].map(([lbl,val,c]) => `
+      <div class="kpi-card" style="border-left-color:${c}">
+        <div class="kpi-lbl">${lbl}</div>
+        <div class="kpi-val" style="color:${c};font-size:1.1rem">${val}</div>
+      </div>`).join('');
+  }
+
+  const labels = sim.rows.map(r => 'Age '+r.age);
+  destroyChart('ch-fire-proj');
+  CHARTS['ch-fire-proj'] = new Chart(document.getElementById('ch-fire-proj'), {
+    type:'line',
+    data:{ labels, datasets:[{
+      label:'Projected Net Worth', data: sim.rows.map(r=>r.netWorth),
+      borderColor:'#5eead4', backgroundColor:'#5eead422', fill:true, tension:.3, pointRadius:0, borderWidth:2.5
+    }] },
+    options: baseOpts()
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  KPI CALC TOOLTIP — tap or hover a tile to see how it's calculated
+// ══════════════════════════════════════════════════════════════════
+function humanizeExpr(expr) {
+  const labels = getCalcLabels();
+  ALL_INPUT_VARS.forEach(k => { if (!(k in labels)) labels[k] = L(k); });
+  const keys = Object.keys(labels).sort((a,b) => b.length - a.length);
+  let out = expr;
+  keys.forEach(k => {
+    out = out.replace(new RegExp('\\b'+k+'\\b','g'), labels[k]);
+  });
+  return out;
+}
+
+const PCT_FORMULA_KEYS = ['lvrAcacia','lvrBenNevis','lvrPortfolio','fireProgress'];
+function kpiTooltipHtml(key) {
+  const f = getAllFormulas().find(x => x.key === key);
+  if (!f) return null;
+  const val = DATA[DATA.length-1][key];
+  const valStr = (typeof val !== 'number' || isNaN(val)) ? '-'
+    : PCT_FORMULA_KEYS.includes(key) ? val.toFixed(1) + '%' : fmtFull(val);
+  return `<div class="kt-title">${f.label}</div>
+    <div class="kt-expr">${humanizeExpr(f.expr)}</div>
+    <div class="kt-raw">${f.expr}</div>
+    <div class="kt-cur">Current: <b>${valStr}</b></div>`;
+}
+
+function positionKpiTooltip(el, tip) {
+  const r = el.getBoundingClientRect();
+  const tw = tip.offsetWidth || 240;
+  let x = r.left;
+  if (x + tw > window.innerWidth - 12) x = window.innerWidth - tw - 12;
+  if (x < 12) x = 12;
+  let y = r.bottom + 6;
+  const th = tip.offsetHeight || 100;
+  if (y + th > window.innerHeight - 12) y = r.top - th - 6;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+let kpiPinnedKey = null;
+function showKpiCalc(el, key) {
+  const tip = document.getElementById('kpi-tooltip');
+  const html = kpiTooltipHtml(key);
+  if (!tip || !html) return;
+  tip.innerHTML = html;
+  tip.classList.add('show');
+  positionKpiTooltip(el, tip);
+}
+function hideKpiCalc() {
+  if (kpiPinnedKey) return;
+  document.getElementById('kpi-tooltip')?.classList.remove('show');
+}
+function toggleKpiCalc(el, key) {
+  const tip = document.getElementById('kpi-tooltip');
+  if (kpiPinnedKey === key) {
+    kpiPinnedKey = null;
+    tip?.classList.remove('show');
+  } else {
+    kpiPinnedKey = key;
+    showKpiCalc(el, key);
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.kpi-card') && !e.target.closest('#kpi-tooltip')) {
+    kpiPinnedKey = null;
+    document.getElementById('kpi-tooltip')?.classList.remove('show');
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 //  CHART HELPERS
@@ -1002,7 +1657,7 @@ function mmPlugin() {
 }
 function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
 
-function baseOpts() {
+function baseOpts(stacked) {
   return {
     responsive:true, maintainAspectRatio:false,
     plugins:{
@@ -1011,8 +1666,8 @@ function baseOpts() {
         callbacks:{label:c=>' '+fmtFull(c.raw)}}
     },
     scales:{
-      x:{ticks:{color:'#bdc3c7',font:{size:10}},grid:{color:'#2e3f55'}},
-      y:{ticks:{color:'#bdc3c7',font:{size:10},callback:v=>fmt(v)},grid:{color:'#2e3f55'}}
+      x:{stacked:!!stacked,ticks:{color:'#bdc3c7',font:{size:10}},grid:{color:'#2e3f55'}},
+      y:{stacked:!!stacked,ticks:{color:'#bdc3c7',font:{size:10},callback:v=>fmt(v)},grid:{color:'#2e3f55'}}
     }
   };
 }
@@ -1032,7 +1687,7 @@ function renderOvChart() {
   }));
   destroyChart('ch-ov');
   CHARTS['ch-ov'] = new Chart(document.getElementById('ch-ov'), {
-    type: type==='bar'?'bar':'line', data:{labels,datasets}, options:baseOpts(), plugins:[mmPlugin()]
+    type: type==='bar'?'bar':'line', data:{labels,datasets}, options:baseOpts(type==='bar'), plugins:[mmPlugin()]
   });
 }
 
@@ -1171,6 +1826,19 @@ function getMetricGroups() {
         { key:'hlInterestRate',  label: L('hlInterestRate') },
       ]
     },
+    {
+      label: '🔥 FIRE Planning',
+      items: [
+        { key:'monthlyExpenses', label: L('monthlyExpenses') },
+        { key:'monthlySavings',  label: L('monthlySavings')  },
+        { key:'swr',             label: L('swr')             },
+        { key:'expectedReturn',  label: L('expectedReturn')  },
+        { key:'johnAge',         label: L('johnAge')         },
+        { key:'johnRetireAge',   label: L('johnRetireAge')   },
+        { key:'rheaAge',         label: L('rheaAge')         },
+        { key:'rheaRetireAge',   label: L('rheaRetireAge')   },
+      ]
+    },
   ];
 }
 
@@ -1264,7 +1932,7 @@ function renderCustom() {
   CHARTS['ch-cu'] = new Chart(document.getElementById('ch-cu'), {
     type: type === 'bar' ? 'bar' : 'line',
     data: { labels, datasets },
-    options: baseOpts(),
+    options: baseOpts(type === 'bar'),
     plugins: [mmPlugin()]
   });
 }
@@ -1272,7 +1940,7 @@ function renderCustom() {
 // ══════════════════════════════════════════════════════════════════
 //  DATA TABLE
 // ══════════════════════════════════════════════════════════════════
-const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax'];
+const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax','monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 function getCalcKeys()   { return getAllFormulas().map(f => f.key); }
 function getCalcLabels() { const o={}; getAllFormulas().forEach(f => o[f.key]=f.label); return o; }
 
@@ -1302,6 +1970,7 @@ const SHARE_FIELDS   = ['collManagedFund','ausUnity','miscShares'];
 const SUPER_FIELDS   = ['collJohnSuper','collRheaSuper','ausSuper','art'];
 const PROP_FIELDS    = ['acaciaHouse','benNevis','warillaUnit'];
 const INCOME_FIELDS  = ['salaryAfterTax','rent','invInterestRate','hlInterestRate'];
+const FIRE_FIELDS    = ['monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 
 
 
@@ -1440,10 +2109,11 @@ async function loadFromDrive(isAutoLoad) {
       RAW = json.RAW;
       if (json.LABELS) LABELS = Object.assign({}, DEFAULT_LABELS, json.LABELS);
       if (Array.isArray(json.USER_FORMULAS)) USER_FORMULAS = json.USER_FORMULAS;
+      if (Array.isArray(json.FIRE_SALES)) FIRE_SALES = json.FIRE_SALES;
       DATA = enrichAll();
       renderKPIs(); renderForm(); renderLabelsList(); prefillLast();
       populateSelects(); renderOvChart(); renderPieTogs(); renderPie(); renderPropChart();
-      renderMetricTogs(); renderCustom();
+      renderMetricTogs(); renderCustom(); renderFireChart(); renderFireLevers();
       if (document.getElementById('page-data')?.classList.contains('active')) renderTable();
     }
     setDriveButtonState('synced', 'Synced');
@@ -1470,7 +2140,7 @@ async function saveToDrive() {
       if (existing) gDriveFileId = existing.id;
     }
     const payload = JSON.stringify({
-      RAW, LABELS, USER_FORMULAS,
+      RAW, LABELS, USER_FORMULAS, FIRE_SALES,
       savedAt: new Date().toISOString()
     }, null, 2);
 
@@ -1517,7 +2187,7 @@ function buildFormSection(gridId, keys, isLiability) {
   document.getElementById(gridId).innerHTML = keys.map(k => `
     <div class="field-item">
       <label class="field-lbl">${L(k)}</label>
-      <input type="number" inputmode="decimal" id="f-${k}" step="any" placeholder="0" class="field-input">
+      <input type="text" inputmode="decimal" autocomplete="off" id="f-${k}" placeholder="0" class="field-input">
     </div>`).join('');
 }
 
@@ -1528,6 +2198,7 @@ function renderForm() {
   buildFormSection('fg-super',   SUPER_FIELDS,  false);
   buildFormSection('fg-props',   PROP_FIELDS,   false);
   buildFormSection('fg-income',  INCOME_FIELDS, false);
+  buildFormSection('fg-fire',    FIRE_FIELDS,   false);
   const allFmls = getAllFormulas();
   document.getElementById('fg-calcs').innerHTML = allFmls.map(f => `
     <div class="field-item">
@@ -1539,7 +2210,7 @@ function renderForm() {
 function setFormValues(row, clearDate) {
   document.getElementById('f-date').value = clearDate ? '' : row.date;
   LOAN_FIELDS.forEach(k => { const el = document.getElementById('f-'+k); if(el) el.value = Math.abs(row[k]||0); });
-  [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS,...INCOME_FIELDS].forEach(k => {
+  [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS,...INCOME_FIELDS,...FIRE_FIELDS].forEach(k => {
     const el = document.getElementById('f-'+k); if(el) el.value = row[k] != null ? Math.abs(row[k]) : '';
   });
   updateCalcOutputs();
@@ -1552,7 +2223,7 @@ function getFormRow() {
   [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS].forEach(k => {
     row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0;
   });
-  INCOME_FIELDS.forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
+  [...INCOME_FIELDS,...FIRE_FIELDS].forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
   return row;
 }
 
@@ -1573,13 +2244,15 @@ function getFormRowRaw() {
   [...OFFSET_FIELDS,...SHARE_FIELDS,...SUPER_FIELDS,...PROP_FIELDS].forEach(k => {
     row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0;
   });
-  INCOME_FIELDS.forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
+  [...INCOME_FIELDS,...FIRE_FIELDS].forEach(k => { row[k] = parseFloat(document.getElementById('f-'+k)?.value)||0; });
   return row;
 }
 
 // Live update calcs as user types
 document.addEventListener('input', e => {
-  if (e.target.closest('#page-add') && e.target.type === 'number') updateCalcOutputs();
+  if (e.target.closest('#page-add') && e.target.tagName === 'INPUT' && e.target.id?.startsWith('f-') && e.target.id !== 'f-date') {
+    updateCalcOutputs();
+  }
 });
 
 function prefillLast() {
@@ -1825,6 +2498,8 @@ renderOvChart();
 renderPieTogs();
 renderPie();
 renderPropChart();
+renderFireChart();
+renderFireLevers();
 renderMetricTogs();
 prefillLast();
 
