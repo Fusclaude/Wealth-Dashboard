@@ -827,6 +827,13 @@ tr:nth-child(even) td { background: #192433; }
       <input type="range" id="lv-expectedReturn" min="0" max="12" step="0.5" oninput="updateLever('expectedReturn',this.value)" style="width:100%">
     </div>
 
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
+        <span>Expected Inflation</span><span id="lv-inflationRate-val" style="color:var(--blue);font-weight:600"></span>
+      </div>
+      <input type="range" id="lv-inflationRate" min="0" max="10" step="0.25" oninput="updateLever('inflationRate',this.value)" style="width:100%">
+    </div>
+
     <div>
       <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--txt2);margin-bottom:4px">
         <span>Monthly Savings/Investing</span><span id="lv-monthlySavings-val" style="color:var(--blue);font-weight:600"></span>
@@ -856,6 +863,17 @@ tr:nth-child(even) td { background: #192433; }
     <div class="card-title">Projected Net Worth (with levers &amp; sales)</div>
     <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Accumulates at your expected return + savings until retirement, then draws down liquid savings for expenses. Scheduled sales convert property/share value into liquid funds. Flatlines at $0 if liquid funds run out.</p>
     <div class="chart-box" style="height:200px"><canvas id="ch-fire-proj"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      Year-by-Year Calculations
+      <button class="btn-sm" onclick="resetFireOverrides()">↺ Clear edits</button>
+    </div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">
+      Tap <strong>Expenses</strong> or <strong>One-off</strong> for any year to override it and see the effect on when funds run out. Edits aren't saved — Reset above clears them, as does the Quick Levers reset.
+    </p>
+    <div class="tbl-scroll" id="fire-table-wrap" style="max-height:360px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -953,6 +971,7 @@ const DEFAULT_LABELS = {
   monthlySavings:   'Est. Monthly Savings/Investing ($)',
   swr:              'Safe Withdrawal Rate (%)',
   expectedReturn:   'Expected Annual Return (%)',
+  inflationRate:    'Expected Inflation Rate (%)',
   johnAge:          "John's Current Age",
   johnRetireAge:    "John's Retirement Age",
   rheaAge:          "Rhea's Current Age",
@@ -1004,7 +1023,7 @@ const ALL_INPUT_VARS = [
   'collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity',
   'miscShares','acaciaHouse','benNevis','warillaUnit',
   'invInterestRate','hlInterestRate','rent','salaryAfterTax',
-  'monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'
+  'monthlyExpenses','monthlySavings','swr','expectedReturn','inflationRate','johnAge','johnRetireAge','rheaAge','rheaRetireAge'
 ];
 
 function evalFormulas(inputRow) {
@@ -1207,31 +1226,35 @@ function renderSummary() {
 function estimateMonthsToFire(row) {
   const expenses = row.monthlyExpenses || 0;
   if (!expenses) return null;
-  const fireNum = row.fireNumber;
+  let fireNum = row.fireNumber;
   let nw = row.netWorth;
-  if (nw >= fireNum) return 0;
+  if (nw >= fireNum) return { months: 0, fireNumberThen: fireNum };
   const r = (row.expectedReturn || 7) / 100 / 12;
+  const infl = (row.inflationRate || 0) / 100 / 12;
   const c = row.monthlySavings || 0;
   const maxMonths = 100 * 12;
   let months = 0;
   while (nw < fireNum && months < maxMonths) {
     nw = nw * (1 + r) + c;
+    fireNum = fireNum * (1 + infl);
     months++;
   }
-  return months < maxMonths ? months : null;
+  return months < maxMonths ? { months, fireNumberThen: fireNum } : null;
 }
 
 function fireProjectionText(row) {
   const expenses = row.monthlyExpenses || 0;
   if (!expenses) return 'Fill in your FIRE planning fields on the Add page to see a projection.';
   if (row.netWorth >= row.fireNumber) return `🎉 You've already reached your FIRE number of ${fmt(row.fireNumber)}!`;
-  const months = estimateMonthsToFire(row);
-  if (months == null) return `At the current savings and return assumptions, FIRE isn't reached within 100 years — try raising Est. Monthly Savings or Expected Annual Return.`;
+  const est = estimateMonthsToFire(row);
+  if (est == null) return `At the current savings and return assumptions, FIRE isn't reached within 100 years — try raising Est. Monthly Savings or Expected Annual Return.`;
+  const { months, fireNumberThen } = est;
   const years = Math.floor(months / 12), rem = months % 12;
   const target = new Date();
   target.setMonth(target.getMonth() + months);
   const targetStr = target.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  let txt = `At ${fmt(row.monthlySavings||0)}/mo savings and ${row.expectedReturn||7}% expected return, you're projected to reach FI in ${years>0?years+'y ':''}${rem}mo (~${targetStr}).`;
+  let txt = `At ${fmt(row.monthlySavings||0)}/mo savings, ${row.expectedReturn||7}% expected return and ${row.inflationRate||0}% inflation, you're projected to reach FI in ${years>0?years+'y ':''}${rem}mo (~${targetStr})`;
+  txt += (row.inflationRate||0) > 0 ? `, when your FIRE number (inflated) will be ~${fmt(fireNumberThen)}.` : '.';
   if (row.johnAge) {
     const johnAtFire = (+row.johnAge) + months/12;
     txt += ` That's around John's age ${johnAtFire.toFixed(1)}`;
@@ -1300,9 +1323,12 @@ function renderFireChart() {
 //  simulation driven by on-page sliders. Pure what-if: never written
 //  back to RAW/Drive.
 // ══════════════════════════════════════════════════════════════════
-const LEVER_KEYS = ['johnAge','johnRetireAge','rheaAge','rheaRetireAge','monthlyExpenses','retireSpendPct','expectedReturn','monthlySavings'];
+const LEVER_KEYS = ['johnAge','johnRetireAge','rheaAge','rheaRetireAge','monthlyExpenses','retireSpendPct','expectedReturn','inflationRate','monthlySavings'];
 let fireLevers = null;
 let fireRetireTrigger = 'both';
+// Per-calendar-year overrides from the editable table below: { [year]: { expenses?, oneOff? } }.
+// Pure what-if, like fireLevers/fireRetireTrigger — never written to RAW/Drive.
+let FIRE_OVERRIDES = {};
 
 // Tracked properties/shares, each optionally linked to the one loan its
 // sale proceeds pay off first. Used only for Scheduled Asset Sales below —
@@ -1381,6 +1407,7 @@ function getFireLeverRow() {
       monthlyExpenses: last.monthlyExpenses || 0,
       retireSpendPct:  100,
       expectedReturn:  last.expectedReturn || 7,
+      inflationRate:   last.inflationRate || 2.5,
       monthlySavings:  last.monthlySavings || 0,
     };
   }
@@ -1395,6 +1422,7 @@ function getFireLeverRow() {
     monthlyExpenses: fireLevers.monthlyExpenses,
     monthlySavings: fireLevers.monthlySavings,
     expectedReturn: fireLevers.expectedReturn,
+    inflationRate: fireLevers.inflationRate,
     retireSpendPct: fireLevers.retireSpendPct,
     fireNumber,
   };
@@ -1411,26 +1439,33 @@ function buildAssetPools(lastRow) {
 }
 
 // Year-by-year: accumulate (grow + save) before retirement, draw down
-// liquid "other" savings for expenses after. Expenses switch to
-// retireSpendPct of pre-retirement spend once retirement triggers
+// liquid "other" savings for expenses after. Expenses inflate every
+// year at inflationRate (both phases) and additionally step to
+// retireSpendPct of their then-current level once retirement triggers
 // (both partners retired, or either — per fireRetireTrigger). Scheduled
 // sales convert a property/share's value to liquid funds in its sale
-// year, paying off its linked loan first. No tax (incl. CGT) modelled.
+// year, paying off its linked loan first. FIRE_OVERRIDES lets a given
+// calendar year's expense run-rate be overridden and/or a one-off
+// amount (positive or negative) added, for "what if this year is
+// different" exploration in the table below. No tax (incl. CGT)
+// modelled.
 function simulateFireProjection(row, lastRow, maxYears) {
   maxYears = maxYears || 60;
   const r = (row.expectedReturn || 7) / 100;
+  const infl = (row.inflationRate || 0) / 100;
   const pools = buildAssetPools(lastRow);
   let other = pools.other;
   let johnAge = row.johnAge, rheaAge = row.rheaAge;
-  const preExpenses = row.monthlyExpenses * 12;
-  let expenses = preExpenses;
-  let expensesAdjusted = false;
+  let expenses = row.monthlyExpenses * 12;
+  let retireStepApplied = false;
   const thisYear = new Date().getFullYear();
   const rows = [];
   let fundsOutAge = null;
 
   for (let i = 0; i < maxYears; i++) {
     const calYear = thisYear + i;
+    const ov = FIRE_OVERRIDES[calYear];
+    if (ov && ov.expenses != null) expenses = ov.expenses;
 
     FIRE_SALES.filter(s => s.year === calYear).forEach(sale => {
       if (sale.assetType === 'property') {
@@ -1457,17 +1492,21 @@ function simulateFireProjection(row, lastRow, maxYears) {
     const retired = fireRetireTrigger === 'both' ? (johnRet && rheaRet) : (johnRet || rheaRet);
 
     if (retired) {
-      if (!expensesAdjusted) { expenses = preExpenses * ((row.retireSpendPct || 100) / 100); expensesAdjusted = true; }
+      if (!retireStepApplied) { expenses *= (row.retireSpendPct || 100) / 100; retireStepApplied = true; }
       other = Math.max(0, other - expenses);
-      if (other <= 0 && fundsOutAge == null) fundsOutAge = johnAge;
     } else {
       other += row.monthlySavings * 12;
     }
 
+    if (ov && ov.oneOff) other += ov.oneOff;
+    other = Math.max(0, other);
+    if (other <= 0 && retired && fundsOutAge == null) fundsOutAge = johnAge;
+
     const totalLoans = Object.values(pools.loans).reduce((a,v)=>a+v,0);
     const netWorth = other + pools.properties.reduce((a,p)=>a+p.value,0) + pools.shares.reduce((a,s)=>a+s.value,0) - totalLoans;
-    rows.push({ age: johnAge, rheaAge, netWorth });
+    rows.push({ year: calYear, age: johnAge, rheaAge, retired, expenses, oneOff: (ov&&ov.oneOff)||0, netWorth });
 
+    expenses *= (1 + infl);
     johnAge++; rheaAge++;
   }
   return { rows, fundsOutAge };
@@ -1481,7 +1520,13 @@ function updateLever(key, val) {
 
 function resetFireLevers() {
   fireLevers = null;
+  FIRE_OVERRIDES = {};
   renderFireLevers();
+}
+
+function resetFireOverrides() {
+  FIRE_OVERRIDES = {};
+  renderFireProjection();
 }
 
 function renderFireLevers() {
@@ -1495,7 +1540,7 @@ function renderFireProjection() {
   const row = getFireLeverRow();
   const fmtLever = (k, v) => {
     if (k === 'monthlyExpenses' || k === 'monthlySavings') return fmt(v);
-    if (k === 'expectedReturn' || k === 'retireSpendPct') return v + '%';
+    if (k === 'expectedReturn' || k === 'retireSpendPct' || k === 'inflationRate') return v + '%';
     return Math.round(v);
   };
   LEVER_KEYS.forEach(k => { const d = document.getElementById('lv-'+k+'-val'); if (d) d.textContent = fmtLever(k, fireLevers[k]); });
@@ -1507,6 +1552,8 @@ function renderFireProjection() {
     if (banner) banner.style.display = 'none';
     if (statsEl) statsEl.innerHTML = '';
     destroyChart('ch-fire-proj');
+    const tbl = document.getElementById('fire-table-wrap');
+    if (tbl) tbl.innerHTML = '<p style="font-size:.72rem;color:var(--txt3)">Set Monthly Expenses above to see the year-by-year table.</p>';
     return;
   }
 
@@ -1545,6 +1592,43 @@ function renderFireProjection() {
     }] },
     options: baseOpts()
   });
+
+  renderFireTable(sim);
+}
+
+function updateFireOverride(year, field, val) {
+  const n = val === '' ? null : parseFloat(val);
+  if (!FIRE_OVERRIDES[year]) FIRE_OVERRIDES[year] = {};
+  if (n == null || isNaN(n)) delete FIRE_OVERRIDES[year][field];
+  else FIRE_OVERRIDES[year][field] = n;
+  if (!Object.keys(FIRE_OVERRIDES[year]).length) delete FIRE_OVERRIDES[year];
+  renderFireProjection();
+}
+
+function renderFireTable(sim) {
+  const wrap = document.getElementById('fire-table-wrap');
+  if (!wrap) return;
+  const showRows = sim.rows.slice(0, 50);
+  let html = `<table><thead><tr>
+      <th>Year</th><th>Age (J/R)</th><th>Status</th><th>Expenses</th><th>One-off</th><th>Net Worth</th>
+    </tr></thead><tbody>`;
+  showRows.forEach(r => {
+    const fundOut = sim.fundsOutAge != null && r.age >= sim.fundsOutAge;
+    html += `<tr style="${fundOut ? 'background:#2a141433' : ''}">
+      <td>${r.year}</td>
+      <td>${r.age}/${r.rheaAge}</td>
+      <td style="color:${r.retired?'var(--amber)':'var(--txt3)'}">${r.retired?'Retired':'Working'}</td>
+      <td><input type="number" value="${Math.round(r.expenses)}" placeholder="0"
+            onchange="updateFireOverride(${r.year},'expenses',this.value)"
+            style="width:76px;text-align:right;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:5px;padding:3px 4px;font-size:.68rem"></td>
+      <td><input type="number" value="${r.oneOff || ''}" placeholder="0"
+            onchange="updateFireOverride(${r.year},'oneOff',this.value)"
+            style="width:68px;text-align:right;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:5px;padding:3px 4px;font-size:.68rem"></td>
+      <td style="color:${fundOut?'var(--red)':'var(--txt)'}">${fmt(r.netWorth)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1833,6 +1917,7 @@ function getMetricGroups() {
         { key:'monthlySavings',  label: L('monthlySavings')  },
         { key:'swr',             label: L('swr')             },
         { key:'expectedReturn',  label: L('expectedReturn')  },
+        { key:'inflationRate',   label: L('inflationRate')   },
         { key:'johnAge',         label: L('johnAge')         },
         { key:'johnRetireAge',   label: L('johnRetireAge')   },
         { key:'rheaAge',         label: L('rheaAge')         },
@@ -1940,7 +2025,7 @@ function renderCustom() {
 // ══════════════════════════════════════════════════════════════════
 //  DATA TABLE
 // ══════════════════════════════════════════════════════════════════
-const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax','monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
+const INPUT_KEYS  = ['date','bnHomeLoan','acaciaInvLoan','bnInvLoan','leShares','leHomeLoan','leOffsetShares','bnInvOffset','bnHomeLoanOffset','collManagedFund','collJohnSuper','collRheaSuper','ausSuper','art','ausUnity','miscShares','acaciaHouse','benNevis','warillaUnit','invInterestRate','hlInterestRate','rent','salaryAfterTax','monthlyExpenses','monthlySavings','swr','expectedReturn','inflationRate','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 function getCalcKeys()   { return getAllFormulas().map(f => f.key); }
 function getCalcLabels() { const o={}; getAllFormulas().forEach(f => o[f.key]=f.label); return o; }
 
@@ -1970,7 +2055,7 @@ const SHARE_FIELDS   = ['collManagedFund','ausUnity','miscShares'];
 const SUPER_FIELDS   = ['collJohnSuper','collRheaSuper','ausSuper','art'];
 const PROP_FIELDS    = ['acaciaHouse','benNevis','warillaUnit'];
 const INCOME_FIELDS  = ['salaryAfterTax','rent','invInterestRate','hlInterestRate'];
-const FIRE_FIELDS    = ['monthlyExpenses','monthlySavings','swr','expectedReturn','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
+const FIRE_FIELDS    = ['monthlyExpenses','monthlySavings','swr','expectedReturn','inflationRate','johnAge','johnRetireAge','rheaAge','rheaRetireAge'];
 
 
 
