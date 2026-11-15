@@ -882,6 +882,18 @@ tr:nth-child(even) td { background: #192433; }
   </div>
 
   <div class="card">
+    <div class="card-title">Asset &amp; Loan Breakdown</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Each component of Net Worth, so you can check which piece is driving the projection (or check it against the table below).</p>
+    <div class="chart-box" style="height:200px"><canvas id="ch-fire-breakdown"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Annual Cash Outflows</div>
+    <p style="font-size:.7rem;color:var(--txt3);margin-bottom:10px">Expenses vs. loan interest vs. loan principal, stacked — the three things drawn from liquid savings (or paid from income pre-retirement) each year.</p>
+    <div class="chart-box" style="height:200px"><canvas id="ch-fire-cashflow"></canvas></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">
       Year-by-Year Calculations
       <button class="btn-sm" onclick="resetFireOverrides()">↺ Clear edits</button>
@@ -1541,7 +1553,7 @@ function simulateFireProjection(row, lastRow, maxYears) {
       }
     });
 
-    let loanRepayTotal = 0;
+    let interestTotal = 0, principalTotal = 0;
     Object.values(pools.loans).forEach(loan => {
       if (loan.balance <= 0.01) { loan.balance = 0; return; }
       const offsetVal = loan.offsetKey ? (pools.offsets[loan.offsetKey] || 0) : 0;
@@ -1549,8 +1561,9 @@ function simulateFireProjection(row, lastRow, maxYears) {
       const interest = effBal * loan.rate;
       const principal = Math.max(0, Math.min(loan.payment - interest, loan.balance));
       loan.balance -= principal;
-      loanRepayTotal += interest + principal;
+      interestTotal += interest; principalTotal += principal;
     });
+    const loanRepayTotal = interestTotal + principalTotal;
 
     pools.properties.forEach(p => { if (!p.sold) p.value *= (1 + pg); });
     pools.shares.forEach(s => { if (!s.sold) s.value *= (1 + r); });
@@ -1573,9 +1586,15 @@ function simulateFireProjection(row, lastRow, maxYears) {
 
     const totalLoans = Object.values(pools.loans).reduce((a,l)=>a+l.balance,0);
     const totalOffsets = Object.values(pools.offsets).reduce((a,v)=>a+v,0);
-    const netWorth = other + pools.properties.reduce((a,p)=>a+p.value,0) + pools.shares.reduce((a,s)=>a+s.value,0)
-      + totalOffsets - totalLoans;
-    rows.push({ year: calYear, age: johnAge, rheaAge, retired, expenses, oneOff: (ov&&ov.oneOff)||0, loanRepay: loanRepayTotal, netWorth });
+    const totalProperty = pools.properties.reduce((a,p)=>a+p.value,0);
+    const totalShares = pools.shares.reduce((a,s)=>a+s.value,0);
+    const netWorth = other + totalProperty + totalShares + totalOffsets - totalLoans;
+    rows.push({
+      year: calYear, age: johnAge, rheaAge, retired, expenses, oneOff: (ov&&ov.oneOff)||0,
+      interest: interestTotal, principal: principalTotal, loanRepay: loanRepayTotal,
+      property: totalProperty, shares: totalShares, offsets: totalOffsets, loans: totalLoans,
+      liquid: other, netWorth,
+    });
 
     expenses *= (1 + infl);
     johnAge++; rheaAge++;
@@ -1625,6 +1644,8 @@ function renderFireProjection() {
     if (banner) banner.style.display = 'none';
     if (statsEl) statsEl.innerHTML = '';
     destroyChart('ch-fire-proj');
+    destroyChart('ch-fire-breakdown');
+    destroyChart('ch-fire-cashflow');
     const tbl = document.getElementById('fire-table-wrap');
     if (tbl) tbl.innerHTML = '<p style="font-size:.72rem;color:var(--txt3)">Set Monthly Expenses above to see the year-by-year table.</p>';
     return;
@@ -1667,6 +1688,44 @@ function renderFireProjection() {
   });
 
   renderFireTable(sim);
+  renderFireBreakdownChart(sim);
+  renderFireCashflowChart(sim);
+}
+
+function renderFireBreakdownChart(sim) {
+  const labels = sim.rows.map(r => 'Age '+r.age);
+  const series = [
+    ['Property',       sim.rows.map(r=>r.property), '#4a90d9'],
+    ['Shares',          sim.rows.map(r=>r.shares),    '#f39c12'],
+    ['Offsets',         sim.rows.map(r=>r.offsets),   '#1abc9c'],
+    ['Liquid Savings',  sim.rows.map(r=>r.liquid),    '#27ae60'],
+    ['Loans',           sim.rows.map(r=>r.loans),     '#e74c3c'],
+  ];
+  destroyChart('ch-fire-breakdown');
+  CHARTS['ch-fire-breakdown'] = new Chart(document.getElementById('ch-fire-breakdown'), {
+    type:'line',
+    data:{ labels, datasets: series.map(([label,data,c]) => ({
+      label, data, borderColor:c, backgroundColor:c+'22', fill:false, tension:.3, pointRadius:0, borderWidth:2
+    })) },
+    options: baseOpts()
+  });
+}
+
+function renderFireCashflowChart(sim) {
+  const labels = sim.rows.map(r => 'Age '+r.age);
+  const series = [
+    ['Expenses',          sim.rows.map(r=>r.expenses),  '#e67e22'],
+    ['Loan Interest',     sim.rows.map(r=>r.interest),  '#e74c3c'],
+    ['Loan Principal',    sim.rows.map(r=>r.principal), '#9c27b0'],
+  ];
+  destroyChart('ch-fire-cashflow');
+  CHARTS['ch-fire-cashflow'] = new Chart(document.getElementById('ch-fire-cashflow'), {
+    type:'bar',
+    data:{ labels, datasets: series.map(([label,data,c]) => ({
+      label, data, backgroundColor:c+'cc', borderColor:c, borderWidth:1
+    })) },
+    options: baseOpts(true)
+  });
 }
 
 function updateFireOverride(year, field, val) {
@@ -1682,8 +1741,12 @@ function renderFireTable(sim) {
   const wrap = document.getElementById('fire-table-wrap');
   if (!wrap) return;
   const showRows = sim.rows.slice(0, 50);
-  let html = `<table><thead><tr>
-      <th>Year</th><th>Age (J/R)</th><th>Status</th><th>Expenses</th><th>One-off</th><th>Loan Repay</th><th>Net Worth</th>
+  let html = `<p style="font-size:.65rem;color:var(--txt3);margin-bottom:6px">Net Worth = Liquid Savings + Property + Shares + Offsets − Loans. Scroll right for the full breakdown.</p>`;
+  html += `<table><thead><tr>
+      <th>Year</th><th>Age (J/R)</th><th>Status</th>
+      <th>Property</th><th>Shares</th><th>Offsets</th><th>Loans</th><th>Liquid Savings</th>
+      <th>Interest</th><th>Principal</th><th>Loan Repay</th>
+      <th>Expenses</th><th>One-off</th><th>Net Worth</th>
     </tr></thead><tbody>`;
   showRows.forEach(r => {
     const fundOut = sim.fundsOutAge != null && r.age >= sim.fundsOutAge;
@@ -1691,14 +1754,21 @@ function renderFireTable(sim) {
       <td>${r.year}</td>
       <td>${r.age}/${r.rheaAge}</td>
       <td style="color:${r.retired?'var(--amber)':'var(--txt3)'}">${r.retired?'Retired':'Working'}</td>
+      <td>${fmt(r.property)}</td>
+      <td>${fmt(r.shares)}</td>
+      <td>${fmt(r.offsets)}</td>
+      <td style="color:var(--red)">${fmt(r.loans)}</td>
+      <td>${fmt(r.liquid)}</td>
+      <td style="color:var(--txt3)">${fmt(r.interest)}</td>
+      <td style="color:var(--txt3)">${fmt(r.principal)}</td>
+      <td>${fmt(r.loanRepay)}</td>
       <td><input type="number" value="${Math.round(r.expenses)}" placeholder="0"
             onchange="updateFireOverride(${r.year},'expenses',this.value)"
             style="width:76px;text-align:right;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:5px;padding:3px 4px;font-size:.68rem"></td>
       <td><input type="number" value="${r.oneOff || ''}" placeholder="0"
             onchange="updateFireOverride(${r.year},'oneOff',this.value)"
             style="width:68px;text-align:right;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:5px;padding:3px 4px;font-size:.68rem"></td>
-      <td>${fmt(r.loanRepay)}</td>
-      <td style="color:${fundOut?'var(--red)':'var(--txt)'}">${fmt(r.netWorth)}</td>
+      <td style="color:${fundOut?'var(--red)':'var(--txt)'};font-weight:600">${fmt(r.netWorth)}</td>
     </tr>`;
   });
   html += '</tbody></table>';
